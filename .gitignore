@@ -1,0 +1,23 @@
+# Python virtual environment
+venv/
+env/
+ENV/
+
+# Credentials (Gemini API Key)
+.env
+backend/.env
+
+# Compiled Python Cache
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Generated PDF Reports
+*.pdf
+backend/*.pdf
+
+# Editor/OS settings
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResearchIQ - Multi-Agent R&D Intelligence</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #0B0F19;
+            --bg-surface: rgba(17, 24, 39, 0.7);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --primary: #3B82F6;
+            --primary-glow: rgba(59, 130, 246, 0.4);
+            --accent-green: #10B981;
+            --accent-yellow: #F59E0B;
+            --accent-red: #EF4444;
+            --text-main: #F3F4F6;
+            --text-muted: #9CA3AF;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 40%);
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+            border-bottom: 1px solid var(--border-color);
+            background-color: rgba(11, 15, 25, 0.8);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .logo {
+            font-family: 'Outfit', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60A5FA 0%, #34D399 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .main-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        /* Search Section */
+        .search-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 30px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .search-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 32px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .search-subtitle {
+            color: var(--text-muted);
+            margin-bottom: 25px;
+            font-size: 16px;
+        }
+
+        .search-bar-wrapper {
+            display: flex;
+            gap: 15px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .search-input {
+            flex: 1;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 15px 20px;
+            color: var(--text-main);
+            font-size: 16px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .search-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 10px var(--primary-glow);
+            background: rgba(255,255,255,0.07);
+        }
+
+        .search-btn {
+            background: linear-gradient(135deg, var(--primary) 0%, #2563EB 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 0 30px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        .search-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+        }
+
+        /* Status & Processing Tracker */
+        .status-container {
+            display: none; /* hidden until search starts */
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+
+        .stepper {
+            display: flex;
+            justify-content: space-between;
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .step {
+            flex: 1;
+            text-align: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .step-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #1F2937;
+            border: 2px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 10px;
+            font-weight: 600;
+            transition: all 0.4s;
+        }
+
+        .step.active .step-circle {
+            background: var(--primary);
+            border-color: var(--primary);
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .step.completed .step-circle {
+            background: var(--accent-green);
+            border-color: var(--accent-green);
+        }
+
+        .step-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .step.active .step-title {
+            color: var(--text-main);
+        }
+
+        /* Results Panel */
+        .dashboard-layout {
+            display: none; /* hidden until search completes */
+            grid-template-columns: 250px 1fr;
+            gap: 30px;
+        }
+
+        .sidebar-nav {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 20px;
+            height: fit-content;
+        }
+
+        .nav-btn {
+            display: block;
+            width: 100%;
+            padding: 12px 15px;
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            color: var(--text-muted);
+            font-size: 15px;
+            font-weight: 500;
+            text-align: left;
+            cursor: pointer;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+        }
+
+        .nav-btn:hover, .nav-btn.active {
+            background: rgba(255,255,255,0.05);
+            color: var(--text-main);
+        }
+
+        .nav-btn.active {
+            border-left: 3px solid var(--primary);
+        }
+
+        .content-panel {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 40px;
+            min-height: 500px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Component Cards */
+        .section-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 26px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        .paper-card, .patent-card {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+
+        .paper-card:hover, .patent-card:hover {
+            transform: translateX(4px);
+            border-color: rgba(255,255,255,0.15);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .badge-red { background: rgba(239, 68, 68, 0.2); color: #FCA5A5; border: 1px solid var(--accent-red); }
+        .badge-yellow { background: rgba(245, 158, 11, 0.2); color: #FCD34D; border: 1px solid var(--accent-yellow); }
+        .badge-green { background: rgba(16, 185, 129, 0.2); color: #6EE7B7; border: 1px solid var(--accent-green); }
+
+        .download-wrapper {
+            text-align: center;
+            padding: 40px 0;
+        }
+
+        .btn-large {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: linear-gradient(135deg, var(--accent-green) 0%, #059669 100%);
+            padding: 15px 40px;
+            font-size: 18px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+            text-decoration: none;
+            color: white;
+            font-weight: 600;
+        }
+
+        .btn-large:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+        }
+
+        /* Gap Heatmap */
+        .gap-box {
+            border-left: 4px solid var(--accent-red);
+            padding-left: 15px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">🔬 ResearchIQ</div>
+        <div>Multi-Agent Orchestrator (v1.0)</div>
+    </header>
+
+    <div class="main-container">
+        <!-- Search Section -->
+        <div class="search-card">
+            <h1 class="search-title">Discover Research. Uncover Gaps. Map IP.</h1>
+            <p class="search-subtitle">Automate literature discovery across 3 databases, identify critical research gaps, and scan patents.</p>
+            <div class="search-bar-wrapper">
+                <input type="text" id="topic-query" class="search-input" placeholder="Enter your research topic... (e.g. Federated Learning Medical Imaging)">
+                <button onclick="startPipeline()" class="search-btn">🚀 Start Analysis</button>
+            </div>
+        </div>
+
+        <!-- Stepper Tracker -->
+        <div id="status-tracker" class="status-container">
+            <div class="stepper">
+                <div class="step" id="step-1">
+                    <div class="step-circle">1</div>
+                    <div class="step-title">Agent 1: Discovery</div>
+                </div>
+                <div class="step" id="step-2">
+                    <div class="step-circle">2</div>
+                    <div class="step-title">Agent 2: Gap Analysis</div>
+                </div>
+                <div class="step" id="step-3">
+                    <div class="step-circle">3</div>
+                    <div class="step-title">Agent 3: Patent Audit</div>
+                </div>
+                <div class="step" id="step-4">
+                    <div class="step-circle">4</div>
+                    <div class="step-title">Agent 4: PDF Compilation</div>
+                </div>
+            </div>
+            <p id="tracker-message" style="text-align: center; color: var(--text-muted); font-size: 14px;">Initializing multi-agent graph...</p>
+        </div>
+
+        <!-- Dashboard Layout -->
+        <div id="dashboard" class="dashboard-layout">
+            <!-- Sidebar -->
+            <div class="sidebar-nav">
+                <button onclick="switchTab('overview')" id="btn-overview" class="nav-btn active">Overview</button>
+                <button onclick="switchTab('papers')" id="btn-papers" class="nav-btn">Research Papers</button>
+                <button onclick="switchTab('gaps')" id="btn-gaps" class="nav-btn">Gaps & Method</button>
+                <button onclick="switchTab('patents')" id="btn-patents" class="nav-btn">Patents Vetting</button>
+                <button onclick="switchTab('export')" id="btn-export" class="nav-btn">Export Brief</button>
+            </div>
+
+            <!-- Content Area -->
+            <div class="content-panel">
+                <!-- Overview Tab -->
+                <div id="tab-overview" class="tab-content active">
+                    <h2 class="section-title">Analysis Overview</h2>
+                    <p style="margin-bottom: 20px; line-height: 1.6;">Our agents have crawled the databases, identified key omissions in current academic frameworks, and audited similar active patent claims. Click through the sidebar links to review findings or export the generated dossier.</p>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; text-align: center;">
+                        <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px;">
+                            <h3 style="font-size: 32px; color: var(--primary);" id="stat-papers">0</h3>
+                            <p style="color: var(--text-muted); font-size: 14px;">Papers Discovered</p>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px;">
+                            <h3 style="font-size: 32px; color: var(--accent-yellow);" id="stat-gaps">0</h3>
+                            <p style="color: var(--text-muted); font-size: 14px;">Research Gaps Identified</p>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px;">
+                            <h3 style="font-size: 32px; color: var(--accent-red);" id="stat-patents">0</h3>
+                            <p style="color: var(--text-muted); font-size: 14px;">Patents Audited</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Papers Tab -->
+                <div id="tab-papers" class="tab-content">
+                    <h2 class="section-title">Discovered Research Papers</h2>
+                    <div id="papers-list"></div>
+                </div>
+
+                <!-- Gaps Tab -->
+                <div id="tab-gaps" class="tab-content">
+                    <h2 class="section-title">Literature Gap Analysis</h2>
+                    <div id="gaps-list" style="margin-bottom: 40px;"></div>
+                    
+                    <h2 class="section-title">Proposed Novel Method</h2>
+                    <div style="background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 12px; padding: 25px;">
+                        <h3 id="proposal-title" style="margin-bottom: 10px; font-family: 'Outfit'; color: #60A5FA;">No Proposal Created</h3>
+                        <p id="proposal-approach" style="line-height: 1.6; margin-bottom: 15px;"></p>
+                        <p id="proposal-rationale" style="font-style: italic; color: var(--text-muted); font-size: 14px; border-top: 1px solid var(--border-color); padding-top: 15px;"></p>
+                    </div>
+                </div>
+
+                <!-- Patents Tab -->
+                <div id="tab-patents" class="tab-content">
+                    <h2 class="section-title">Patent Infringement Vetting</h2>
+                    <div id="patents-list"></div>
+                </div>
+
+                <!-- Export Tab -->
+                <div id="tab-export" class="tab-content">
+                    <h2 class="section-title">Dossier PDF Export</h2>
+                    <p style="color: var(--text-muted); margin-bottom: 30px; line-height: 1.6;">Your multi-agent compiled report has been generated. The PDF contains plagiarism-safe summaries, gap analysis, patent landscapes, and a metadata reference appendix.</p>
+                    <div class="download-wrapper">
+                        <a href="#" id="pdf-download-btn" class="btn-large" target="_blank">📥 Download PDF Report</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let reportData = null;
+
+        function switchTab(tabName) {
+            // Remove active class from buttons & contents
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            // Set active
+            document.getElementById(`btn-${tabName}`).classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+
+        async function startPipeline() {
+            const query = document.getElementById('topic-query').value.trim();
+            if (!query) {
+                alert('Please enter a research topic first.');
+                return;
+            }
+
+            const tracker = document.getElementById('status-tracker');
+            const message = document.getElementById('tracker-message');
+            const dashboard = document.getElementById('dashboard');
+
+            // Reset UI
+            tracker.style.display = 'block';
+            dashboard.style.display = 'none';
+            document.querySelectorAll('.step').forEach(step => {
+                step.classList.remove('active', 'completed');
+            });
+
+            // Step 1 active
+            document.getElementById('step-1').classList.add('active');
+            message.innerText = "Agent 1 searching arXiv, Semantic Scholar, and Crossref...";
+
+            try {
+                // Trigger backend API
+                const response = await fetch('/api/research', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ topic: query, max_results: 5 })
+                });
+
+                if (!response.ok) throw new Error("Backend query failed");
+
+                // Simulate stepper progress for user experience
+                setTimeout(() => {
+                    document.getElementById('step-1').classList.replace('active', 'completed');
+                    document.getElementById('step-2').classList.add('active');
+                    message.innerText = "Agent 2 identifying conflicts and synthesizing novel methodology...";
+                }, 2000);
+
+                setTimeout(() => {
+                    document.getElementById('step-2').classList.replace('active', 'completed');
+                    document.getElementById('step-3').classList.add('active');
+                    message.innerText = "Agent 3 scanning patent databases and verifying risk profile...";
+                }, 4000);
+
+                setTimeout(() => {
+                    document.getElementById('step-3').classList.replace('active', 'completed');
+                    document.getElementById('step-4').classList.add('active');
+                    message.innerText = "Agent 4 compiling final ReportLab PDF brief...";
+                }, 6000);
+
+                const data = await response.json();
+                reportData = data;
+
+                setTimeout(() => {
+                    document.getElementById('step-4').classList.replace('active', 'completed');
+                    message.innerText = "Analysis completed successfully!";
+                    renderDashboard(data);
+                }, 8000);
+
+            } catch (err) {
+                console.error(err);
+                message.innerText = "Error encountered during execution. Please check your Gemini API key configurations.";
+            }
+        }
+
+        function renderDashboard(data) {
+            // Update stats
+            document.getElementById('stat-papers').innerText = data.research.papers.length;
+            document.getElementById('stat-gaps').innerText = data.gaps.gaps.length;
+            document.getElementById('stat-patents').innerText = data.patents.patents.length;
+
+            // Render Research Papers List
+            const papersList = document.getElementById('papers-list');
+            papersList.innerHTML = '';
+            data.research.papers.forEach(paper => {
+                papersList.innerHTML += `
+                    <div class="paper-card">
+                        <h4 style="margin-bottom: 5px; color: #60A5FA;">${paper.title}</h4>
+                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">
+                            By ${paper.authors.join(', ')} (${paper.year}) | Relevance: ${Math.round(paper.relevance_score * 100)}%
+                        </p>
+                        <p style="font-size: 14px; line-height: 1.5; color: var(--text-main);">${paper.abstract.substring(0, 300)}...</p>
+                        ${paper.url ? `<a href="${paper.url}" target="_blank" style="display:inline-block; margin-top:10px; color:var(--primary); font-size:13px; text-decoration:none;">🔗 Original Paper link</a>` : ''}
+                    </div>
+                `;
+            });
+
+            // Render Gaps List
+            const gapsList = document.getElementById('gaps-list');
+            gapsList.innerHTML = '';
+            data.gaps.gaps.forEach(gap => {
+                const badgeClass = gap.severity === 'Critical' ? 'badge-red' : (gap.severity === 'Moderate' ? 'badge-yellow' : 'badge-green');
+                gapsList.innerHTML += `
+                    <div class="gap-box">
+                        <span class="badge ${badgeClass}">${gap.severity} Gap</span>
+                        <p style="font-size: 15px; font-weight: 500; margin-bottom: 8px;">${gap.description}</p>
+                        <p style="font-size: 13px; color: var(--text-muted);">Evidence: ${gap.evidence_papers.join(', ')}</p>
+                    </div>
+                `;
+            });
+
+            // Render Proposed Method
+            document.getElementById('proposal-title').innerText = data.gaps.proposed_method.title;
+            document.getElementById('proposal-approach').innerHTML = data.gaps.proposed_method.approach.replace(/\n/g, '<br>');
+            document.getElementById('proposal-rationale').innerText = "Plagiarism-Safe Rationale: " + data.gaps.proposed_method.rationale;
+
+            // Render Patents List
+            const patentsList = document.getElementById('patents-list');
+            patentsList.innerHTML = '';
+            data.patents.patents.forEach(pat => {
+                const badgeClass = pat.relevance === 'Prior Art' ? 'badge-red' : (pat.relevance === 'Overlap' ? 'badge-yellow' : 'badge-green');
+                patentsList.innerHTML += `
+                    <div class="patent-card">
+                        <span class="badge ${badgeClass}">${pat.relevance}</span>
+                        <h4 style="margin-bottom: 5px;">Patent ID: ${pat.patent_id} - ${pat.title}</h4>
+                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">Assignee: ${pat.assignee}</p>
+                        <p style="font-size: 14px; line-height: 1.5;">${pat.summary}</p>
+                        ${pat.url ? `<a href="${pat.url}" target="_blank" style="display:inline-block; margin-top:10px; color:var(--primary); font-size:13px; text-decoration:none;">🔗 Patent Database link</a>` : ''}
+                    </div>
+                `;
+            });
+
+            // Set Download URL
+            if (data.pdf_filename) {
+                document.getElementById('pdf-download-btn').href = `/api/download/${data.pdf_filename}`;
+            } else {
+                document.getElementById('pdf-download-btn').style.display = 'none';
+            }
+
+            // Show Dashboard
+            document.getElementById('dashboard').style.display = 'grid';
+            switchTab('overview');
+        }
+    </script>
+</body>
+</html>
