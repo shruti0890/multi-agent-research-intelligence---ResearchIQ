@@ -519,18 +519,33 @@
             document.getElementById('stat-gaps').innerText = data.gaps.gaps.length;
             document.getElementById('stat-patents').innerText = data.patents.patents.length;
 
-            // Render Research Papers List
+            // Render Research Papers List (NotebookLM Style)
             const papersList = document.getElementById('papers-list');
             papersList.innerHTML = '';
             data.research.papers.forEach(paper => {
+                const rankClass = paper.relevance_rank === 'High' ? 'badge-green' : (paper.relevance_rank === 'Medium' ? 'badge-yellow' : 'badge-red');
                 papersList.innerHTML += `
                     <div class="paper-card">
-                        <h4 style="margin-bottom: 5px; color: #60A5FA;">${paper.title}</h4>
-                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">
-                            By ${paper.authors.join(', ')} (${paper.year}) | Relevance: ${Math.round(paper.relevance_score * 100)}%
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+                            <h4 style="margin-bottom: 5px; color: #60A5FA; font-family: 'Outfit';">${paper.title}</h4>
+                            <span class="badge ${rankClass}" style="flex-shrink: 0;">${paper.relevance_rank} Relevance</span>
+                        </div>
+                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+                            By ${paper.authors.join(', ')} (${paper.year}) | Score: ${Math.round(paper.relevance_score * 100)}%
                         </p>
-                        <p style="font-size: 14px; line-height: 1.5; color: var(--text-main);">${paper.abstract.substring(0, 300)}...</p>
-                        ${paper.url ? `<a href="${paper.url}" target="_blank" style="display:inline-block; margin-top:10px; color:var(--primary); font-size:13px; text-decoration:none;">🔗 Original Paper link</a>` : ''}
+                        
+                        <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border-left: 3px solid var(--primary); margin-bottom: 12px;">
+                            <p style="font-size: 13px; font-weight: 600; color: #93C5FD; margin-bottom: 4px;">📖 NotebookLM Card Summary:</p>
+                            <p style="font-size: 13.5px; line-height: 1.5; color: var(--text-main);">${paper.notebook_summary}</p>
+                        </div>
+                        
+                        <div style="background: rgba(255,255,255,0.01); padding: 12px; border-radius: 8px; border-left: 3px solid var(--text-muted); margin-bottom: 12px;">
+                            <p style="font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px;">⚙️ Algorithmic Execution:</p>
+                            <p style="font-size: 13px; font-family: monospace; color: #A7F3D0;">${paper.technical_execution}</p>
+                        </div>
+                        
+                        <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 8px;"><b>Datasets used:</b> ${paper.datasets.join(', ')}</p>
+                        ${paper.url ? `<a href="${paper.url}" target="_blank" style="display:inline-block; margin-top:5px; color:var(--primary); font-size:13px; text-decoration:none;">🔗 Original Source link</a>` : ''}
                     </div>
                 `;
             });
@@ -543,8 +558,9 @@
                 gapsList.innerHTML += `
                     <div class="gap-box">
                         <span class="badge ${badgeClass}">${gap.severity} Gap</span>
-                        <p style="font-size: 15px; font-weight: 500; margin-bottom: 8px;">${gap.description}</p>
-                        <p style="font-size: 13px; color: var(--text-muted);">Evidence: ${gap.evidence_papers.join(', ')}</p>
+                        <p style="font-size: 15px; font-weight: 600; margin-bottom: 6px;">${gap.description}</p>
+                        <p style="font-size: 13.5px; color: var(--text-muted); margin-bottom: 8px; font-style: italic;"><b>Impact:</b> ${gap.why_it_matters}</p>
+                        <p style="font-size: 12.5px; color: var(--text-muted);">Evidence Papers: ${gap.evidence_papers.join(', ')}</p>
                     </div>
                 `;
             });
@@ -559,13 +575,23 @@
             patentsList.innerHTML = '';
             data.patents.patents.forEach(pat => {
                 const badgeClass = pat.relevance === 'Prior Art' ? 'badge-red' : (pat.relevance === 'Overlap' ? 'badge-yellow' : 'badge-green');
+                const ftoBadgeClass = pat.fto_rating === 'Alert' ? 'badge-red' : (pat.fto_rating === 'Caution' ? 'badge-yellow' : 'badge-green');
                 patentsList.innerHTML += `
                     <div class="patent-card">
-                        <span class="badge ${badgeClass}">${pat.relevance}</span>
-                        <h4 style="margin-bottom: 5px;">Patent ID: ${pat.patent_id} - ${pat.title}</h4>
+                        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                            <span class="badge ${badgeClass}">${pat.relevance}</span>
+                            <span class="badge ${ftoBadgeClass}">FTO: ${pat.fto_rating}</span>
+                        </div>
+                        <h4 style="margin-bottom: 5px; font-family: 'Outfit';">Patent ID: ${pat.patent_id} - ${pat.title}</h4>
                         <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">Assignee: ${pat.assignee}</p>
-                        <p style="font-size: 14px; line-height: 1.5;">${pat.summary}</p>
-                        ${pat.url ? `<a href="${pat.url}" target="_blank" style="display:inline-block; margin-top:10px; color:var(--primary); font-size:13px; text-decoration:none;">🔗 Patent Database link</a>` : ''}
+                        <p style="font-size: 14px; line-height: 1.5; color: var(--text-main); margin-bottom: 12px;">${pat.summary}</p>
+                        
+                        <div style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); padding: 15px; border-radius: 8px; border-left: 4px solid var(--accent-green); margin-bottom: 10px;">
+                            <p style="font-size: 13px; font-weight: 700; color: #34D399; margin-bottom: 4px;">🛡️ Actionable Design-Around Strategy:</p>
+                            <p style="font-size: 13.5px; line-height: 1.5; color: var(--text-main);">${pat.design_around_strategy}</p>
+                        </div>
+                        
+                        ${pat.url ? `<a href="${pat.url}" target="_blank" style="display:inline-block; margin-top:5px; color:var(--primary); font-size:13px; text-decoration:none;">🔗 Patent Database link</a>` : ''}
                     </div>
                 `;
             });

@@ -114,6 +114,13 @@ def search_and_classify_patents(gap_data: Agent2GapOutput, query_topic: str) -> 
     2. "Overlap" - Covers a similar space but differs in execution (Moderate risk).
     3. "White Space" - No conceptual relation (Safe).
     
+    Assess a Freedom to Operate (FTO) rating:
+    - 'Alert': Active overlap/Prior art. High risk of legal action.
+    - 'Caution': Partial overlap. Differentiate your approach.
+    - 'Safe': No conflict. Safe to operate.
+    
+    Suggest a 'design_around_strategy': Write a simple 1-2 sentence actionable instruction telling the programmer EXACTLY what architectural or mathematical change they should make to their code to bypass this patent.
+    
     You MUST respond with a valid JSON block matching this EXACT schema structure:
     {{
       "patents": [
@@ -123,6 +130,8 @@ def search_and_classify_patents(gap_data: Agent2GapOutput, query_topic: str) -> 
           "assignee": "Assignee Name",
           "relevance": "Prior Art" | "Overlap" | "White Space",
           "summary": "1-sentence summary of what they patented",
+          "fto_rating": "Safe" | "Caution" | "Alert",
+          "design_around_strategy": "Actionable instructions on what the developer should do to avoid conflict",
           "url": "https://patents.google.com/patent/USXXXXXXXXX"
         }}
       ],
@@ -155,6 +164,8 @@ def search_and_classify_patents(gap_data: Agent2GapOutput, query_topic: str) -> 
                 assignee=pat.get("assignee", "Unknown"),
                 relevance=pat.get("relevance", "White Space"),
                 summary=pat.get("summary", ""),
+                fto_rating=pat.get("fto_rating", "Safe"),
+                design_around_strategy=pat.get("design_around_strategy", "No conflict, proceed as planned."),
                 url=pat.get("url")
             ))
             
@@ -174,6 +185,8 @@ def search_and_classify_patents(gap_data: Agent2GapOutput, query_topic: str) -> 
                 assignee=pat["assignee"],
                 relevance="Overlap",
                 summary="Provides baseline parameter exchanges over medical imaging clinical checkpoints.",
+                fto_rating="Caution",
+                design_around_strategy=f"Avoid using standard parameter averaging. Implement a randomized node weights scaling system.",
                 url=f"https://patents.google.com/patent/{pat['patent_id']}"
             ))
         return Agent3PatentOutput(

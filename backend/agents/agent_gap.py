@@ -162,6 +162,7 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
     
     Analyze the clustered papers and generate:
     1. A list of 2-3 research gaps (things these papers failed to address, limitations, or conflicts).
+       Make sure the explanation is simple, clear, and easy to understand for a human reader.
     2. A "Novel Method Proposal" that combines features across these clusters to solve the identified gaps.
     
     Academic papers context:
@@ -171,8 +172,9 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
     {{
       "gaps": [
         {{
-          "description": "Clear detailed explanation of the research gap",
+          "description": "Clear, plain-English explanation of the research gap",
           "severity": "Critical" | "Moderate" | "Minor",
+          "why_it_matters": "Explain simply why this gap prevents commercial progress or real-world use",
           "evidence_papers": ["Title of Paper A", "Title of Paper B"]
         }}
       ],
@@ -206,6 +208,7 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
             gaps_list.append(ResearchGap(
                 description=gap.get("description", ""),
                 severity=gap.get("severity", "Moderate"),
+                why_it_matters=gap.get("why_it_matters", ""),
                 evidence_papers=gap.get("evidence_papers", [])
             ))
             
@@ -227,6 +230,7 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
                 ResearchGap(
                     description="Standard benchmark validation gaps across local institutional data splits.",
                     severity="Critical",
+                    why_it_matters="Without standard benchmark datasets, we cannot measure progress or compare different algorithms.",
                     evidence_papers=[papers[0].title] if papers else []
                 )
             ],
