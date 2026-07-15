@@ -1,6 +1,8 @@
 import sys
 sys.path.append("backend")
+# pyrefly: ignore [missing-import]
 from schemas import Agent2GapOutput, NovelMethodProposal
+# pyrefly: ignore [missing-import]
 from agents.agent_patent import search_and_classify_patents
 
 gap_data = Agent2GapOutput(

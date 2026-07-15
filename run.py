@@ -5,10 +5,15 @@ import time
 # Ensure backend folder is in path for imports
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend"))
 
+# pyrefly: ignore [missing-import]
 from schemas import ProjectReportState
+# pyrefly: ignore [missing-import]
 from agents.agent_research import fetch_arxiv_papers
+# pyrefly: ignore [missing-import]
 from agents.agent_gap import cluster_and_analyze_gaps
+# pyrefly: ignore [missing-import]
 from agents.agent_patent import search_and_classify_patents
+# pyrefly: ignore [missing-import]
 from agents.agent_compile import compile_final_report
 
 def run_interactive_pipeline():
@@ -17,6 +22,7 @@ def run_interactive_pipeline():
     print("=" * 60)
     
     # 1. Check for API key
+    # pyrefly: ignore [missing-import]
     from dotenv import load_dotenv
     load_dotenv(os.path.join("backend", ".env"))
     api_key = os.getenv("GEMINI_API_KEY")

@@ -13,6 +13,14 @@ class PaperMetadata(BaseModel):
     datasets: List[str] = Field(description="Datasets utilized, if any")
     url: str = Field(description="Link to the original paper")
     relevance_score: float = Field(description="Numerical similarity score (0.0 to 1.0)")
+    # Deep analysis fields for the PDF report
+    problem_statement: str = Field(default="Not extracted", description="The core research problem this paper addresses")
+    proposed_solution: str = Field(default="Not extracted", description="The solution or approach the paper proposes")
+    methodology: str = Field(default="Not extracted", description="Methods, algorithms, and techniques used")
+    results: str = Field(default="Not extracted", description="Key results, metrics, and performance numbers")
+    challenges: str = Field(default="Not extracted", description="Limitations and challenges acknowledged by the authors")
+    future_outcomes: str = Field(default="Not extracted", description="Future work directions mentioned in the paper")
+
 
 class Agent1ResearchOutput(BaseModel):
     query: str

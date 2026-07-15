@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+# pyrefly: ignore [missing-import]
 from dotenv import load_dotenv
 
 from schemas import ProjectReportState
