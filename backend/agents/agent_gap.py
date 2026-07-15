@@ -28,7 +28,7 @@ def _get_client():
         _gemini_client = genai.Client(api_key=api_key)
     return _gemini_client
 
-GEMINI_MODEL = "gemini-1.5-flash"
+GEMINI_MODEL = "gemini-2.5-flash"
 
 # Basic English Stop Words for cleaning abstract text
 STOP_WORDS = {

@@ -28,7 +28,7 @@ def _get_client():
         _gemini_client = genai.Client(api_key=api_key)
     return _gemini_client
 
-GEMINI_MODEL = "gemini-1.5-flash"
+GEMINI_MODEL = "gemini-2.5-flash"
 
 def normalize_title(title: str) -> str:
     return re.sub(r'[^a-z0-9]', '', title.lower())
