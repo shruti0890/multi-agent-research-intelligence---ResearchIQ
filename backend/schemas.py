@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 # --- Agent 1: Research Paper Output Model (NotebookLM Style) ---
 class PaperMetadata(BaseModel):
