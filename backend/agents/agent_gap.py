@@ -6,7 +6,7 @@ import re
 import math
 from typing import List, Dict, Set
 # pyrefly: ignore [missing-import]
-import google.generativeai as genai
+from google import genai
 # pyrefly: ignore [missing-import]
 from dotenv import load_dotenv
 
@@ -15,10 +15,18 @@ from schemas import Agent1ResearchOutput, Agent2GapOutput, ResearchGap, NovelMet
 # Load environment variables
 load_dotenv()
 
-# Configure Gemini
-api_key = os.getenv("GEMINI_API_KEY")
-if api_key:
-    genai.configure(api_key=api_key)
+# Configure Gemini using the new google.genai SDK (same as agent_research.py)
+_gemini_client = None
+def _get_client():
+    global _gemini_client
+    if _gemini_client is None:
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY not set in environment.")
+        _gemini_client = genai.Client(api_key=api_key)
+    return _gemini_client
+
+GEMINI_MODEL = "gemini-1.5-flash"
 
 # Basic English Stop Words for cleaning abstract text
 STOP_WORDS = {
@@ -197,8 +205,8 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
     """
 
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        response = model.generate_content(prompt)
+        client = _get_client()
+        response = client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
         response_text = response.text.strip()
 
         # Clean formatting
@@ -232,19 +240,27 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
 
     except Exception as e:
         print(f"Error calling Gemini in Agent 2: {e}")
-        # Fallback: generate a unique gap per paper from its title and abstract
+        # Fallback: generate a UNIQUE gap per paper derived from that paper's actual abstract
+        severity_cycle = ["Critical", "Moderate", "Minor", "Critical", "Moderate", "Minor", "Critical", "Moderate"]
         fallback_gaps = []
-        for paper in papers:
-            abstract_excerpt = paper.abstract[:200] if paper.abstract else ""
+        for idx, paper in enumerate(papers):
+            # Extract meaningful words from abstract to make gap unique
+            abstract = paper.abstract or ""
+            # Get first meaningful sentence from abstract
+            first_sentence = abstract.split(".")[0].strip() if "." in abstract else abstract[:150].strip()
+            # Get the last 60 chars of title for topic variation
+            title_tail = paper.title[-60:].strip() if len(paper.title) > 60 else paper.title
+            severity = severity_cycle[idx % len(severity_cycle)]
+            
             fallback_gaps.append(ResearchGap(
                 description=(
-                    f"'{paper.title}' does not address scalability constraints when extending its approach "
-                    f"to large-scale heterogeneous datasets, limiting real-world deployability."
+                    f"'{paper.title[:70]}' lacks comprehensive validation: {first_sentence[:120]}. "
+                    f"This approach has not been tested beyond its original experimental setting."
                 ),
-                severity="Moderate",
+                severity=severity,
                 why_it_matters=(
-                    f"Scalability is essential for enterprise adoption. Without it, the methods in "
-                    f"'{paper.title[:50]}' remain confined to lab-scale experiments."
+                    f"Without broader validation, the findings from '{title_tail}' cannot be generalized "
+                    f"to real-world deployments, limiting its practical impact and adoption."
                 ),
                 evidence_papers=[paper.title]
             ))

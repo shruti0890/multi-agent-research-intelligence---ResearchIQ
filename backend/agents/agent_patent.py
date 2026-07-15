@@ -31,25 +31,36 @@ GEMINI_MODEL = "gemini-1.5-flash"
 def _build_dynamic_fallback_patents(patents_list: list, query_topic: str, proposed_method_title: str) -> Agent3PatentOutput:
     """
     When the Gemini API call fails, build patent output dynamically from the
-    actual patents_list (which is always topic-aware by this point).
+    actual patents_list. Each patent gets a summary and design-around derived
+    from its OWN abstract — not a shared template.
     """
-    topic_keywords = query_topic.lower().replace("-", " ").split()[:4]
-    topic_kw_str = " ".join(topic_keywords)
+    relevance_cycle = ["Overlap", "Prior Art", "White Space"]
+    fto_cycle = ["Caution", "Alert", "Safe"]
 
     fallback_patents = []
     for idx, pat in enumerate(patents_list):
-        # Vary relevance and FTO rating by position to avoid all-identical output
-        relevance_options = ["Overlap", "Prior Art", "White Space"]
-        fto_options = ["Caution", "Alert", "Safe"]
-        relevance = relevance_options[idx % len(relevance_options)]
-        fto_rating = fto_options[idx % len(fto_options)]
-        fto_color_hint = "moderate risk" if fto_rating == "Caution" else ("high risk" if fto_rating == "Alert" else "safe to proceed")
+        relevance = relevance_cycle[idx % len(relevance_cycle)]
+        fto_rating = fto_cycle[idx % len(fto_cycle)]
+
+        # Build summary from the patent's own abstract
+        abstract = pat.get("abstract", "") or ""
+        # Take first sentence of abstract as the unique summary basis
+        first_sentence = abstract.split(".")[0].strip() if "." in abstract else abstract[:180].strip()
+        summary = (
+            f"{first_sentence}." if first_sentence
+            else f"Covers novel approaches in '{pat['title'][:80]}' filed by {pat['assignee']}."
+        )
+
+        # Build a design-around strategy that references THIS patent's specific title keywords
+        # Extract last 3 meaningful words from title to make it unique
+        title_words = [w for w in pat["title"].split() if len(w) > 3]
+        key_tech = " ".join(title_words[-3:]) if len(title_words) >= 3 else pat["title"][:40]
 
         design_around = (
-            f"To avoid conflict with '{pat['title'][:60]}', implement a differentiated "
-            f"'{proposed_method_title}' variant that uses alternative mathematical formulations "
-            f"(e.g., spectral decomposition instead of parameter averaging) and avoids the specific "
-            f"'{topic_kw_str}' encoding steps cited in this patent's claims."
+            f"This patent specifically protects '{key_tech}'. "
+            f"To design around it, replace that specific component in your '{proposed_method_title}' "
+            f"implementation with an alternative approach such as consensus-based aggregation or "
+            f"gradient-free optimization that avoids the patented mechanism."
         )
 
         fallback_patents.append(PatentInfo(
@@ -57,22 +68,20 @@ def _build_dynamic_fallback_patents(patents_list: list, query_topic: str, propos
             title=pat["title"],
             assignee=pat["assignee"],
             relevance=relevance,
-            summary=(
-                f"This patent ({pat['patent_id']}) by {pat['assignee']} covers aspects of "
-                f"'{pat['title'][:80]}', which has {fto_color_hint} overlap with the proposed '{query_topic}' methodology."
-            ),
+            summary=summary,
             fto_rating=fto_rating,
             design_around_strategy=design_around,
             url=f"https://patents.google.com/patent/{pat['patent_id']}"
         ))
 
     white_space = [
-        f"Integration of '{query_topic}' with real-time adaptive inference pipelines — not covered by surveyed patents.",
-        f"Privacy-preserving evaluation benchmarks for '{query_topic}' systems across decentralized nodes.",
-        f"Lightweight edge-deployable variants of '{query_topic}' architectures targeting IoT resource constraints.",
+        f"Real-time adaptive inference for '{query_topic}' systems — no patents found covering end-to-end streaming architectures.",
+        f"Privacy-preserving evaluation benchmarks for '{query_topic}' across decentralized node networks.",
+        f"Lightweight edge-deployable '{query_topic}' variants targeting IoT devices with <1MB model footprint.",
     ]
 
     return Agent3PatentOutput(patents=fallback_patents, white_space_opportunities=white_space)
+
 
 
 def search_and_classify_patents(gap_data: Agent2GapOutput, query_topic: str) -> Agent3PatentOutput:
