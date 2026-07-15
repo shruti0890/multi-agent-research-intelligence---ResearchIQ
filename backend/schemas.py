@@ -53,6 +53,7 @@ class PatentInfo(BaseModel):
     fto_rating: str = Field(description="Freedom to Operate: Safe, Caution, or Alert")
     design_around_strategy: str = Field(description="Detailed suggestion on how to build your code differently to avoid infringing this patent")
     url: Optional[str] = Field(None, description="URL link to Google Patents")
+    source_links: Optional[Dict[str, str]] = Field(None, description="URLs to various patent platforms")
 
 class Agent3PatentOutput(BaseModel):
     patents: List[PatentInfo]

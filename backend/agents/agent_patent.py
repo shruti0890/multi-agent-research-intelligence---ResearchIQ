@@ -29,6 +29,18 @@ def _get_client():
 
 GEMINI_MODEL = "gemini-2.5-flash"
 
+def get_patent_source_links(patent_id: str) -> dict:
+    """Generates accurate source links for various patent platforms based on the patent ID."""
+    # Clean patent ID by removing spaces or special characters
+    clean_id = patent_id.replace(" ", "").replace("-", "").strip()
+    return {
+        "Google Patents": f"https://patents.google.com/patent/{clean_id}",
+        "Espacenet": f"https://worldwide.espacenet.com/patent/search/family/041079814/publication/{clean_id}?q={clean_id}",
+        "USPTO": f"https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/{clean_id}",
+        "Lens.org": f"https://www.lens.org/lens/search/patent/list?q={clean_id}",
+        "Patentscope": f"https://patentscope.wipo.int/search/en/result.jsf?query=ID:{clean_id}",
+        "PQAI": f"https://search.projectq.org/search?q={clean_id}"
+    }
 
 def _build_dynamic_fallback_patents(patents_list: list, query_topic: str, proposed_method_title: str) -> Agent3PatentOutput:
     """
@@ -73,7 +85,8 @@ def _build_dynamic_fallback_patents(patents_list: list, query_topic: str, propos
             summary=summary,
             fto_rating=fto_rating,
             design_around_strategy=design_around,
-            url=f"https://patents.google.com/patent/{pat['patent_id']}"
+            url=f"https://patents.google.com/patent/{pat['patent_id']}",
+            source_links=get_patent_source_links(pat["patent_id"])
         ))
 
     white_space = [
@@ -241,17 +254,20 @@ def search_and_classify_patents(gap_data: Agent2GapOutput, query_topic: str) -> 
         data = json.loads(response_text.strip())
         
         patents_out = []
-        for pat in data.get("patents", []):
-            patents_out.append(PatentInfo(
-                patent_id=pat.get("patent_id", "US0000000"),
-                title=pat.get("title", ""),
-                assignee=pat.get("assignee", "Unknown"),
-                relevance=pat.get("relevance", "White Space"),
-                summary=pat.get("summary", ""),
-                fto_rating=pat.get("fto_rating", "Safe"),
-                design_around_strategy=pat.get("design_around_strategy", "No conflict, proceed as planned."),
-                url=pat.get("url")
-            ))
+        if "patents" in data:
+            for pat in data["patents"]:
+                pid = pat.get("patent_id", "")
+                patents_out.append(PatentInfo(
+                    patent_id=pid,
+                    title=pat.get("title", ""),
+                    assignee=pat.get("assignee", ""),
+                    relevance=pat.get("relevance", "Overlap"),
+                    summary=pat.get("summary", ""),
+                    fto_rating=pat.get("fto_rating", "Caution"),
+                    design_around_strategy=pat.get("design_around_strategy", ""),
+                    url=pat.get("url", f"https://patents.google.com/patent/{pid}"),
+                    source_links=get_patent_source_links(pid)
+                ))
             
         return Agent3PatentOutput(
             patents=patents_out,
