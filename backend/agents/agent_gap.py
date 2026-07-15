@@ -7,6 +7,7 @@ import math
 from typing import List, Dict, Set
 # pyrefly: ignore [missing-import]
 from google import genai
+from google.genai import types
 # pyrefly: ignore [missing-import]
 from dotenv import load_dotenv
 
@@ -208,7 +209,13 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
 
     try:
         client = _get_client()
-        response = client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json"
+            )
+        )
         response_text = response.text.strip()
 
         # Clean formatting
@@ -242,6 +249,10 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
 
     except Exception as e:
         print(f"Error calling Gemini in Agent 2: {e}")
+        try:
+            print(f"RAW RESPONSE: {response.text}")
+        except:
+            pass
         # Fallback: generate a UNIQUE gap per paper derived from that paper's actual abstract
         severity_cycle = ["Critical", "Moderate", "Minor", "Critical", "Moderate", "Minor", "Critical", "Moderate"]
         fallback_gaps = []
