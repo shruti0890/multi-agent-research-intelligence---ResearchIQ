@@ -11,8 +11,9 @@ from dotenv import load_dotenv
 
 from schemas import Agent2GapOutput, Agent3PatentOutput, PatentInfo  # type: ignore
 
-# Load environment variables
-load_dotenv()
+# Load environment variables — explicit path so it works when server runs from project root
+_env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
+load_dotenv(dotenv_path=_env_path)
 
 # Configure Gemini using the new google.genai SDK
 _gemini_client = None
@@ -21,7 +22,8 @@ def _get_client():
     if _gemini_client is None:
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
-            raise ValueError("GEMINI_API_KEY not set in environment.")
+            raise ValueError("GEMINI_API_KEY not set. Check backend/.env file.")
+        print(f"[Agent3] Gemini API key loaded: ...{api_key[-6:]}")
         _gemini_client = genai.Client(api_key=api_key)
     return _gemini_client
 
