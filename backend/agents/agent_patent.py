@@ -6,6 +6,7 @@ import urllib.request
 import urllib.parse
 # pyrefly: ignore [missing-import]
 from google import genai
+from google.genai import types
 # pyrefly: ignore [missing-import]
 from dotenv import load_dotenv
 
@@ -31,7 +32,6 @@ GEMINI_MODEL = "gemini-2.5-flash"
 
 def get_patent_source_links(patent_id: str) -> dict:
     """Generates accurate source links for various patent platforms based on the patent ID."""
-    # Clean patent ID by removing spaces or special characters
     clean_id = patent_id.replace(" ", "").replace("-", "").strip()
     return {
         "Google Patents": f"https://patents.google.com/patent/{clean_id}",
@@ -44,9 +44,7 @@ def get_patent_source_links(patent_id: str) -> dict:
 
 def _build_dynamic_fallback_patents(patents_list: list, query_topic: str, proposed_method_title: str) -> Agent3PatentOutput:
     """
-    When the Gemini API call fails, build patent output dynamically from the
-    actual patents_list. Each patent gets a summary and design-around derived
-    from its OWN abstract — not a shared template.
+    Fallback if Gemini completely fails.
     """
     relevance_cycle = ["Overlap", "Prior Art", "White Space"]
     fto_cycle = ["Caution", "Alert", "Safe"]
@@ -56,26 +54,8 @@ def _build_dynamic_fallback_patents(patents_list: list, query_topic: str, propos
         relevance = relevance_cycle[idx % len(relevance_cycle)]
         fto_rating = fto_cycle[idx % len(fto_cycle)]
 
-        # Build summary from the patent's own abstract
-        abstract = pat.get("abstract", "") or ""
-        # Take first sentence of abstract as the unique summary basis
-        first_sentence = abstract.split(".")[0].strip() if "." in abstract else abstract[:180].strip()
-        summary = (
-            f"{first_sentence}." if first_sentence
-            else f"Covers novel approaches in '{pat['title'][:80]}' filed by {pat['assignee']}."
-        )
-
-        # Build a design-around strategy that references THIS patent's specific title keywords
-        # Extract last 3 meaningful words from title to make it unique
-        title_words = [w for w in pat["title"].split() if len(w) > 3]
-        key_tech = " ".join(title_words[-3:]) if len(title_words) >= 3 else pat["title"][:40]
-
-        design_around = (
-            f"This patent specifically protects '{key_tech}'. "
-            f"To design around it, replace that specific component in your '{proposed_method_title}' "
-            f"implementation with an alternative approach such as consensus-based aggregation or "
-            f"gradient-free optimization that avoids the patented mechanism."
-        )
+        summary = pat.get("title", "")
+        design_around = f"To design around it, replace that specific component in your '{proposed_method_title}' implementation with an alternative approach."
 
         fallback_patents.append(PatentInfo(
             patent_id=pat["patent_id"],
@@ -97,161 +77,64 @@ def _build_dynamic_fallback_patents(patents_list: list, query_topic: str, propos
 
     return Agent3PatentOutput(patents=fallback_patents, white_space_opportunities=white_space)
 
-
-
 def search_and_classify_patents(gap_data: Agent2GapOutput, query_topic: str) -> Agent3PatentOutput:
     """
-    Searches the PatentsView USPTO API using topic and gap keywords,
-    then uses Gemini to classify matching patents as Prior Art, Overlap, or White Space.
+    Uses Gemini to retrieve real, existing patents related to the query topic from its parametric memory,
+    and simultaneously classify them against the proposed method to determine FTO and Overlap.
     """
     proposed_method = gap_data.proposed_method
     
-    # URL encode query parameters for PatentsView API
-    q_param = f'{{"_text_any":{{"patent_title":"{query_topic}"}}}}'
-    f_param = '["patent_number","patent_title","patent_abstract","assignee_organization"]'
-    
-    encoded_q = urllib.parse.quote(q_param)
-    encoded_f = urllib.parse.quote(f_param)
-    
-    url = f'https://api.patentsview.org/patents/query?q={encoded_q}&f={encoded_f}&o={{"limit":5}}'
-    
-    patents_list = []
-    
-    try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=10) as response:
-            res_data = json.loads(response.read().decode())
-            
-            raw_patents = res_data.get("patents", [])
-            if raw_patents is not None:
-                for pat in raw_patents:
-                    pat_number = pat.get("patent_number", "US0000000")
-                    pat_title = pat.get("patent_title", "Unknown Title")
-                    pat_abstract = pat.get("patent_abstract", "No abstract available.")
-                    
-                    assignees = pat.get("assignees", [])
-                    assignee_name = "Individual Inventor"
-                    if assignees and isinstance(assignees, list):
-                        org = assignees[0].get("assignee_organization")
-                        if org:
-                            assignee_name = org
-                            
-                    patents_list.append({
-                        "patent_id": pat_number,
-                        "title": pat_title,
-                        "abstract": pat_abstract,
-                        "assignee": assignee_name
-                    })
-    except Exception as e:
-        print(f"PatentsView API warning (using fallback mock patent lookup): {e}")
-        
-    # --- Dynamic topic-aware mock patents if API returned no data ---
-    if not patents_list:
-        topic_slug = query_topic.title()
-        patents_list = [
-            {
-                "patent_id": "US10928345B2",
-                "title": f"Distributed model training on heterogeneous endpoints for {topic_slug}",
-                "abstract": (
-                    f"A system and method for training and aggregating {topic_slug} model parameters "
-                    f"derived from separate computational clusters without exposing raw training data, "
-                    f"using differential privacy noise injection."
-                ),
-                "assignee": "Google LLC"
-            },
-            {
-                "patent_id": "US11456782B1",
-                "title": f"Adaptive parameter aggregation for {topic_slug} architectures",
-                "abstract": (
-                    f"Methods and systems for measuring gradient divergence in distributed {topic_slug} "
-                    f"model exchanges by introducing momentum-scaled noise thresholds to prevent "
-                    f"information leakage across participating nodes."
-                ),
-                "assignee": "IBM Corporation"
-            },
-            {
-                "patent_id": "US11203847A1",
-                "title": f"Multi-objective optimization framework for {topic_slug} inference pipelines",
-                "abstract": (
-                    f"A pipeline architecture optimizing latency, throughput, and accuracy trade-offs "
-                    f"for {topic_slug} inference at edge devices using quantization and pruning schedules."
-                ),
-                "assignee": "Microsoft Corporation"
-            },
-        ]
-
-    # Build prompt context of patent data
-    patent_context = []
-    for pat in patents_list:
-        patent_context.append(
-            f"Patent ID: {pat['patent_id']}\n"
-            f"Title: {pat['title']}\n"
-            f"Assignee: {pat['assignee']}\n"
-            f"Abstract: {pat['abstract']}\n"
-        )
-    patents_text = "\n".join(patent_context)
-
-    # Prompt LLM to classify relation to proposed method
     prompt = f"""
-    You are an expert Patent Analyst and IP Lawyer.
-    Evaluate the following proposed methodology against each active patent listed below.
+    You are an expert Patent Attorney and IP Strategist.
     
-    Proposed Method to Evaluate:
-    Title: {proposed_method.title}
+    The user is researching the following technology topic: "{query_topic}"
+    They have proposed a novel methodology called: "{proposed_method.title}"
     Approach: {proposed_method.approach}
     
-    Patents List:
-    {patents_text}
+    TASK:
+    1. Search your knowledge base and identify 4 REAL, EXISTING patents that are highly relevant to "{query_topic}". 
+       You MUST provide their actual, correct Patent IDs (e.g., US10928345B2, EP3456789A1) and their real titles and assignees.
+    2. Classify each of these 4 patents against the proposed methodology.
     
-    For EACH patent individually:
-    1. Read its actual abstract carefully and write a 'summary' that explains what THAT SPECIFIC PATENT covers based on what is written in its abstract. Do NOT use generic summaries — each summary must reflect the unique technology described in that patent's own abstract.
-    2. Classify its relationship to our proposed method:
-       - "Prior Art": Directly covers the same core invention (High overlap).
-       - "Overlap": Covers a similar space but in a different way (Moderate risk).
-       - "White Space": No direct relation to our method (Safe zone).
-    3. Assign a Freedom to Operate (FTO) rating:
-       - 'Alert': Direct overlap/Prior art — high legal risk.
-       - 'Caution': Partial overlap — differentiate your approach.
-       - 'Safe': No conflict — proceed freely.
-    4. Write a 'design_around_strategy': A 1-2 sentence actionable instruction telling the developer EXACTLY what architectural or algorithmic change to make to their code to avoid infringing THIS SPECIFIC patent's claims.
+    For each patent, output:
+    - patent_id: The actual patent publication or grant number (NO SPACES).
+    - title: The real title of the patent.
+    - assignee: The company or inventor who owns it.
+    - relevance: "Prior Art", "Overlap", or "White Space"
+    - summary: A 1-2 sentence summary of what the patent covers.
+    - fto_rating: "Safe", "Caution", or "Alert"
+    - design_around_strategy: A specific, actionable engineering suggestion to avoid infringing this specific patent's claims.
     
-    You MUST respond with a valid JSON block matching this EXACT schema structure:
+    Also, identify 3 "white_space_opportunities" (unpatented sub-niches related to the topic).
+    
+    You MUST respond with a valid JSON object matching this schema EXACTLY:
     {{
       "patents": [
         {{
-          "patent_id": "Patent ID string",
-          "title": "Patent Title",
-          "assignee": "Assignee Name",
-          "relevance": "Prior Art" | "Overlap" | "White Space",
-          "summary": "A unique 1-2 sentence summary of what THIS SPECIFIC PATENT protects, based on its actual abstract",
-          "fto_rating": "Safe" | "Caution" | "Alert",
-          "design_around_strategy": "Specific actionable instruction for the developer to avoid this patent",
-          "url": "https://patents.google.com/patent/USXXXXXXXXX"
+          "patent_id": "US...",
+          "title": "...",
+          "assignee": "...",
+          "relevance": "...",
+          "summary": "...",
+          "fto_rating": "...",
+          "design_around_strategy": "..."
         }}
       ],
-      "white_space_opportunities": [
-        "Description of an unpatented opportunity area in this domain"
-      ]
+      "white_space_opportunities": ["...", "...", "..."]
     }}
-    
-    CRITICAL: Every 'summary' must be uniquely derived from THAT patent's abstract. Do NOT copy the same summary across multiple patents.
-    Respond ONLY with the JSON code block. No extra explanations, no markdown wrapper backticks.
     """
     
     try:
         client = _get_client()
-        response = client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
+        response = client.models.generate_content(
+            model=GEMINI_MODEL, 
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json"
+            )
+        )
         response_text = response.text.strip()
-        
-        # Clean markdown code fences from both sides
-        if response_text.startswith("```json"):
-            response_text = response_text[7:]
-        if response_text.startswith("```"):
-            response_text = response_text[3:]
-        if response_text.endswith("```"):
-            response_text = response_text[:-3]
-            
-        data = json.loads(response_text.strip())
+        data = json.loads(response_text)
         
         patents_out = []
         if "patents" in data:
@@ -265,16 +148,27 @@ def search_and_classify_patents(gap_data: Agent2GapOutput, query_topic: str) -> 
                     summary=pat.get("summary", ""),
                     fto_rating=pat.get("fto_rating", "Caution"),
                     design_around_strategy=pat.get("design_around_strategy", ""),
-                    url=pat.get("url", f"https://patents.google.com/patent/{pid}"),
+                    url=f"https://patents.google.com/patent/{pid}",
                     source_links=get_patent_source_links(pid)
                 ))
             
         return Agent3PatentOutput(
             patents=patents_out,
-            white_space_opportunities=data.get("white_space_opportunities", [f"General integration methods for {query_topic}"])
+            white_space_opportunities=data.get("white_space_opportunities", [])
         )
         
     except Exception as e:
         print(f"Error calling Gemini in Agent 3: {e}")
-        # Return dynamic fallback derived from actual topic-aware patents_list
-        return _build_dynamic_fallback_patents(patents_list, query_topic, proposed_method.title)
+        try:
+            print(f"RAW RESPONSE: {response.text}")
+        except:
+            pass
+        return _build_dynamic_fallback_patents(
+            [
+                {"patent_id": "US10928345B2", "title": f"Distributed model training for {query_topic}", "assignee": "Google LLC"},
+                {"patent_id": "US11456782B1", "title": f"Adaptive parameter aggregation for {query_topic}", "assignee": "IBM Corporation"},
+                {"patent_id": "US11203847A1", "title": f"Multi-objective optimization framework for {query_topic}", "assignee": "Microsoft"}
+            ],
+            query_topic,
+            proposed_method.title
+        )
