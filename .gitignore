@@ -21,3 +21,6 @@ backend/*.pdf
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Generated visual charts
+*.png
