@@ -297,16 +297,17 @@ The researcher is studying the topic: "{query_topic}"
 Their proposed novel methodology is: "{proposed_method.title}"
 Approach: {proposed_method.approach[:400]}
 
-The following REAL patents were retrieved from an open patent database based on the actual
-titles of research papers found during literature search. Each patent's "Source Paper"
-shows which research paper triggered that patent search.
+Below is a list of candidate patents retrieved from open databases based on the research papers.
+Some of these patents may be completely off-topic (e.g. medical patents appearing in a search about finance due to broad search terms).
 
 {patents_text}
 
-For EACH patent, produce a UNIQUE analysis based on that specific patent's own abstract.
-Do NOT reuse summaries or strategies across patents.
+YOUR TASK:
+1. Filter out any patents that are completely off-topic or irrelevant to the main topic "{query_topic}".
+2. Select the top 4 most relevant patents from the remaining list.
+3. For each of the top 4 selected patents, produce a UNIQUE analysis based on that specific patent's own abstract. Do NOT reuse summaries or strategies across patents.
 
-Fields required:
+Fields required per patent:
 - patent_id   : EXACT copy from Patent ID above
 - title       : EXACT copy from Title above
 - assignee    : EXACT copy from Assignee above
@@ -343,6 +344,37 @@ Respond ONLY with a valid JSON object (no markdown, no explanation):
     return json.loads(response.text.strip())
 
 
+def _filter_candidates_by_topic(patents_list: list, query_topic: str) -> list:
+    """
+    Scores and ranks fetched patents based on overlap with the main query topic.
+    Discards completely off-topic patents (e.g. medical patents during a finance search).
+    """
+    stopwords = {"and", "for", "the", "with", "using", "of", "in", "on", "a", "an",
+                 "via", "to", "from", "by", "at", "or", "as", "is", "are", "into",
+                 "through", "neural", "networks", "network", "deep", "machine", "learning"}
+    topic_words = {w.lower() for w in query_topic.split() if w.lower() not in stopwords and len(w) > 2}
+    
+    # Add adjacent related words for common domains (e.g. finance -> stock, market, portfolio)
+    finance_keywords = {"finance", "financial", "forecasting", "stock", "market", "trading", "investment", "portfolio", "asset", "price", "returns"}
+    if any(w in query_topic.lower() for w in finance_keywords):
+        topic_words.update(finance_keywords)
+
+    scored_patents = []
+    for pat in patents_list:
+        text = (pat.get("title", "") + " " + pat.get("abstract", "")).lower()
+        score = sum(1 for w in topic_words if w in text)
+        scored_patents.append((score, pat))
+        
+    scored_patents.sort(key=lambda x: x[0], reverse=True)
+    
+    # Keep patents with score > 0. If none, keep all to avoid returning empty
+    filtered = [pat for score, pat in scored_patents if score > 0]
+    if not filtered:
+        filtered = patents_list
+        
+    return filtered
+
+
 # ---------------------------------------------------------------------------
 # MAIN PUBLIC FUNCTION — called from main.py
 # ---------------------------------------------------------------------------
@@ -353,11 +385,10 @@ def search_and_classify_patents(
 ) -> Agent3PatentOutput:
     """
     Full Agent 3 pipeline:
-    1. Uses actual research paper titles from Agent 1 to search the Europe PMC
-       open patent database — each paper title is a separate targeted search.
-    2. If EPMC returns nothing, falls back to Gemini knowledge-based patent lookup.
-    3. Sends all unique real patents to Gemini for IP classification and
-       design-around strategy generation.
+    1. Uses actual research paper titles from Agent 1 to search EPMC & Crossref.
+    2. If APIs return nothing, falls back to Gemini knowledge-based patent lookup.
+    3. Filters out off-topic patents using keyword matching.
+    4. Sends relevant patents to Gemini for classification.
     """
     proposed_method = gap_data.proposed_method
 
@@ -368,7 +399,7 @@ def search_and_classify_patents(
 
     # ── Step 2: If live API returned nothing, use Gemini fallback ────────
     if not patents_list:
-        print("[Agent3] EPMC returned no results. Trying Gemini fallback...")
+        print("[Agent3] EPMC/Crossref returned no results. Trying Gemini fallback...")
         if research_out is not None:
             patents_list = _fetch_patents_via_gemini_fallback(research_out, query_topic)
 
@@ -386,7 +417,11 @@ def search_and_classify_patents(
             }
         ]
 
-    # ── Step 4: Classify with Gemini ─────────────────────────────────────
+    # ── Step 4: Python-based topic relevance filtering ───────────────────
+    patents_list = _filter_candidates_by_topic(patents_list, query_topic)
+    print(f"[Agent3] After topic relevance filtering, {len(patents_list)} patents remain.")
+
+    # ── Step 5: Classify with Gemini ─────────────────────────────────────
     try:
         data = _classify_patents_with_gemini(patents_list, gap_data, query_topic)
 
