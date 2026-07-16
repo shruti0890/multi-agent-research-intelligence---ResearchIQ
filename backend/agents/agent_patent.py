@@ -408,7 +408,7 @@ def search_and_classify_patents(
                 fto_rating=pat.get("fto_rating", "Caution"),
                 design_around_strategy=pat.get("design_around_strategy", ""),
                 url=best_url,
-                source_links=get_patent_source_links(pid, pat_title),
+                source_links=get_patent_source_links(pid, pat_title, best_url),
             ))
 
         if not patents_out:
@@ -440,7 +440,7 @@ def search_and_classify_patents(
                     f"'{proposed_method.title}' implementation by using a distinct algorithmic approach."
                 ),
                 url=pat.get("url") or _make_google_patents_url(pid, pat_title),
-                source_links=get_patent_source_links(pid, pat_title),
+                source_links=get_patent_source_links(pid, pat_title, pat.get("url") or _make_google_patents_url(pid, pat_title)),
             ))
         return Agent3PatentOutput(
             patents=fallback,
