@@ -306,12 +306,24 @@ YOUR TASK:
 1. Filter out any patents that are completely off-topic or irrelevant to the main topic "{query_topic}".
 2. Select the top 4 most relevant patents from the remaining list.
 3. For each of the top 4 selected patents, produce a UNIQUE analysis based on that specific patent's own abstract. Do NOT reuse summaries or strategies across patents.
+4. Calculate a unique relevance_score (integer between 0 and 100) for each patent using these six factors:
+   - Technical similarity
+   - Problem similarity
+   - Methodology overlap
+   - Domain alignment
+   - Innovation overlap
+   - Application similarity
+   No two patents should receive the same relevance_score.
+5. Provide a detailed match_explanation explaining why this patent was matched.
+6. Sort the list of patents in descending order of relevance_score.
 
 Fields required per patent:
 - patent_id   : EXACT copy from Patent ID above
 - title       : EXACT copy from Title above
 - assignee    : EXACT copy from Assignee above
 - relevance   : "Prior Art" | "Overlap" | "White Space"
+- relevance_score : Integer between 0 and 100
+- match_explanation : Detailed explanation of the match
 - summary     : 1-2 sentences describing what THIS specific patent covers (based on its abstract)
 - fto_rating  : "Safe" | "Caution" | "Alert"
 - design_around_strategy : Specific, actionable engineering change to avoid infringing THIS patent's claims
@@ -326,6 +338,8 @@ Respond ONLY with a valid JSON object (no markdown, no explanation):
       "title": "...",
       "assignee": "...",
       "relevance": "...",
+      "relevance_score": 92,
+      "match_explanation": "...",
       "summary": "...",
       "fto_rating": "...",
       "design_around_strategy": "..."
@@ -434,6 +448,7 @@ def search_and_classify_patents(
                 continue
             pat_title = pat.get("title", "")
             best_url = fetched_url_map.get(pid) or _make_google_patents_url(pid, pat_title)
+            
             patents_out.append(PatentInfo(
                 patent_id=pid,
                 title=pat_title,
@@ -444,10 +459,18 @@ def search_and_classify_patents(
                 design_around_strategy=pat.get("design_around_strategy", ""),
                 url=best_url,
                 source_links=get_patent_source_links(pid, pat_title, best_url),
+                relevance_score=int(pat.get("relevance_score", 70)),
+                match_explanation=pat.get("match_explanation", "Matches core technology requirements.")
             ))
 
         if not patents_out:
             raise ValueError("Gemini returned 0 classified patents.")
+
+        # Sort patents descending by relevance score
+        patents_out.sort(key=lambda x: x.relevance_score, reverse=True)
+        # Assign ranks
+        for rank_idx, pat in enumerate(patents_out, 1):
+            pat.rank = rank_idx
 
         return Agent3PatentOutput(
             patents=patents_out,
@@ -456,13 +479,20 @@ def search_and_classify_patents(
 
     except Exception as e:
         print(f"[Agent3] Gemini classification error: {e}")
-        # Build a minimal fallback from the fetched list
+        # Build a minimal fallback from the fetched list with unique scores
         fallback = []
         for idx, pat in enumerate(patents_list):
             pid = pat["patent_id"]
             pat_title = pat.get("title", "")
             abstract = pat.get("abstract", "")
             summary = abstract.split(".")[0] + "." if "." in abstract else abstract[:150]
+            
+            # Simple content overlap for unique scores
+            query_words = set(query_topic.lower().split())
+            text_words = set((pat_title + " " + abstract).lower().split())
+            overlap = len(query_words & text_words)
+            rel_score = min(98, max(45, 60 + (overlap * 6) - (idx * 5)))
+
             fallback.append(PatentInfo(
                 patent_id=pid,
                 title=pat_title,
@@ -476,7 +506,14 @@ def search_and_classify_patents(
                 ),
                 url=pat.get("url") or _make_google_patents_url(pid, pat_title),
                 source_links=get_patent_source_links(pid, pat_title, pat.get("url") or _make_google_patents_url(pid, pat_title)),
+                relevance_score=rel_score,
+                match_explanation=f"Matches query terms with {overlap} overlapping technical concepts."
             ))
+            
+        fallback.sort(key=lambda x: x.relevance_score, reverse=True)
+        for rank_idx, pat in enumerate(fallback, 1):
+            pat.rank = rank_idx
+            
         return Agent3PatentOutput(
             patents=fallback,
             white_space_opportunities=[

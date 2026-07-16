@@ -13,6 +13,7 @@ class PaperMetadata(BaseModel):
     datasets: List[str] = Field(description="Datasets utilized, if any")
     url: str = Field(description="Link to the original paper")
     relevance_score: float = Field(description="Numerical similarity score (0.0 to 1.0)")
+    
     # Deep analysis fields for the PDF report
     problem_statement: str = Field(default="Not extracted", description="The core research problem this paper addresses")
     proposed_solution: str = Field(default="Not extracted", description="The solution or approach the paper proposes")
@@ -20,6 +21,18 @@ class PaperMetadata(BaseModel):
     results: str = Field(default="Not extracted", description="Key results, metrics, and performance numbers")
     challenges: str = Field(default="Not extracted", description="Limitations and challenges acknowledged by the authors")
     future_outcomes: str = Field(default="Not extracted", description="Future work directions mentioned in the paper")
+    
+    # Quality Enhancements
+    innovation_score: int = Field(default=0, description="Innovation level score out of 100")
+    research_significance: str = Field(default="Not analyzed", description="Detailed contribution and significance analysis")
+    
+    # Paper-specific Gap Analysis
+    gap_description: str = Field(default="Not analyzed", description="Unsolved research limitation or gap specific to this paper")
+    gap_impact: str = Field(default="Not analyzed", description="Blocker/impact of this gap on real-world use cases")
+    gap_why_exists: str = Field(default="Not analyzed", description="Technical or data reasons why this gap exists")
+    gap_opportunity: str = Field(default="Not analyzed", description="Actionable next step/research opportunity")
+    gap_future_scope: str = Field(default="Not analyzed", description="Long-term vision/future scope")
+    gap_severity: str = Field(default="Low", description="Severity classification: Critical, Moderate, or Low")
 
 
 class Agent1ResearchOutput(BaseModel):
@@ -54,6 +67,11 @@ class PatentInfo(BaseModel):
     design_around_strategy: str = Field(description="Detailed suggestion on how to build your code differently to avoid infringing this patent")
     url: Optional[str] = Field(None, description="URL link to Google Patents")
     source_links: Optional[Dict[str, str]] = Field(None, description="URLs to various patent platforms")
+    
+    # Patent relevance and ranking enhancements
+    relevance_score: int = Field(default=0, description="Patent relevance score (0-100)")
+    rank: int = Field(default=1, description="Rank from highest to lowest relevance")
+    match_explanation: str = Field(default="", description="Explanations for why each patent was matched")
 
 class Agent3PatentOutput(BaseModel):
     patents: List[PatentInfo]

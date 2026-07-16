@@ -312,6 +312,12 @@
             border: 1px solid var(--accent-green);
         }
 
+        .badge-purple {
+            background: rgba(139, 92, 246, 0.2);
+            color: #C084FC;
+            border: 1px solid #8B5CF6;
+        }
+
         .download-wrapper {
             text-align: center;
             padding: 40px 0;
@@ -564,12 +570,15 @@
                 const rankClass = paper.relevance_rank === 'High' ? 'badge-green' : (paper.relevance_rank === 'Medium' ? 'badge-yellow' : 'badge-red');
                 papersList.innerHTML += `
                     <div class="paper-card">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap;">
                             <h4 style="margin-bottom: 5px; color: #60A5FA; font-family: 'Outfit';">${paper.title}</h4>
-                            <span class="badge ${rankClass}" style="flex-shrink: 0;">${paper.relevance_rank} Relevance</span>
+                            <div style="display: flex; gap: 5px; flex-shrink: 0;">
+                                <span class="badge ${rankClass}">${paper.relevance_rank} Relevance</span>
+                                <span class="badge badge-purple">Innov: ${paper.innovation_score}/100</span>
+                            </div>
                         </div>
                         <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
-                            By ${paper.authors.join(', ')} (${paper.year}) | Score: ${Math.round(paper.relevance_score * 100)}%
+                            By ${paper.authors.join(', ')} (${paper.year}) | Relevance Score: ${Math.round(paper.relevance_score * 100)}%
                         </p>
                         
                         <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border-left: 3px solid var(--primary); margin-bottom: 12px;">
@@ -577,6 +586,20 @@
                             <p style="font-size: 13.5px; line-height: 1.5; color: var(--text-main);">${paper.notebook_summary}</p>
                         </div>
                         
+                        <div style="background: rgba(255,255,255,0.015); padding: 12px; border-radius: 8px; border-left: 3px solid #8B5CF6; margin-bottom: 12px;">
+                            <p style="font-size: 13px; font-weight: 600; color: #C084FC; margin-bottom: 4px;">💡 Research Significance & Contribution:</p>
+                            <p style="font-size: 13px; line-height: 1.4; color: var(--text-main);">${paper.research_significance}</p>
+                        </div>
+
+                        <div style="background: rgba(255,255,255,0.01); padding: 12px; border-radius: 8px; border-left: 3px solid #EF4444; margin-bottom: 12px;">
+                            <p style="font-size: 13px; font-weight: 600; color: #FCA5A5; margin-bottom: 6px;">🚨 Identified Research Gap (${paper.gap_severity} Severity):</p>
+                            <p style="font-size: 13.5px; line-height: 1.4; color: var(--text-main); margin-bottom: 6px;"><b>Gap:</b> ${paper.gap_description}</p>
+                            <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 3px;"><b>Impact:</b> ${paper.gap_impact}</p>
+                            <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 3px;"><b>Why it exists:</b> ${paper.gap_why_exists}</p>
+                            <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 3px;"><b>Research Opportunity:</b> ${paper.gap_opportunity}</p>
+                            <p style="font-size: 12.5px; color: var(--text-muted);"><b>Future Scope:</b> ${paper.gap_future_scope}</p>
+                        </div>
+
                         <div style="background: rgba(255,255,255,0.01); padding: 12px; border-radius: 8px; border-left: 3px solid var(--text-muted); margin-bottom: 12px;">
                             <p style="font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px;">⚙️ Algorithmic Execution:</p>
                             <p style="font-size: 13px; font-family: monospace; color: #A7F3D0;">${paper.technical_execution}</p>
@@ -616,13 +639,16 @@
                 const ftoBadgeClass = pat.fto_rating === 'Alert' ? 'badge-red' : (pat.fto_rating === 'Caution' ? 'badge-yellow' : 'badge-green');
                 patentsList.innerHTML += `
                     <div class="patent-card">
-                        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
                             <span class="badge ${badgeClass}">${pat.relevance}</span>
                             <span class="badge ${ftoBadgeClass}">FTO: ${pat.fto_rating}</span>
+                            <span class="badge badge-purple">Relevance: ${pat.relevance_score}/100</span>
+                            <span class="badge badge-green">Rank #${pat.rank}</span>
                         </div>
                         <h4 style="margin-bottom: 5px; font-family: 'Outfit';">Patent ID: ${pat.patent_id} - ${pat.title}</h4>
                         <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">Assignee: ${pat.assignee}</p>
-                        <p style="font-size: 14px; line-height: 1.5; color: var(--text-main); margin-bottom: 12px;">${pat.summary}</p>
+                        <p style="font-size: 13.5px; line-height: 1.4; color: var(--text-muted); margin-bottom: 10px;"><b>Match Explanation:</b> ${pat.match_explanation}</p>
+                        <p style="font-size: 14px; line-height: 1.5; color: var(--text-main); margin-bottom: 12px;"><b>Summary:</b> ${pat.summary}</p>
                         
                         <div style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); padding: 15px; border-radius: 8px; border-left: 4px solid var(--accent-green); margin-bottom: 10px;">
                             <p style="font-size: 13px; font-weight: 700; color: #34D399; margin-bottom: 4px;">🛡️ Actionable Design-Around Strategy:</p>

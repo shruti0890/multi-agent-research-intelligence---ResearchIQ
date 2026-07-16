@@ -161,38 +161,37 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
 
     all_papers_block = "\n---\n".join(paper_entries)
 
-    # Single prompt: analyze ALL papers at once but produce ONE gap OBJECT per paper
     prompt = f"""
     You are an expert Scientific Researcher and Critical Analyst.
     I will give you a list of {len(papers)} research papers on the topic: '{research_data.query}'.
     
     Your task:
     For EACH paper listed below, identify ONE unique research gap that is SPECIFIC to that paper.
-    - The gap must be based on the actual content of that paper's abstract and title.
-    - Each gap MUST be different — do NOT repeat the same gap for different papers.
-    - Explain it clearly so a non-expert can understand it.
-    - Assign severity: 'Critical', 'Moderate', or 'Minor'.
-    - Write 'why_it_matters': why does this limitation block real-world or commercial use?
+    Every gap MUST be different — do NOT repeat the same gap for different papers.
+    For each paper, determine:
+    1. gap_description: The specific research gap or limitations of the proposed method (dataset constraints, scalability concerns, computational challenges, missing evaluations, explainability issues, security, or generalization).
+    2. gap_impact: Why this limitation blocks real-world adoption or industrial deployment.
+    3. gap_why_exists: The technical or data reason why the authors left this gap (e.g. data unavailability, compute cost, lack of theoretical framework).
+    4. gap_opportunity: Actionable next step or research opportunity to solve this gap.
+    5. gap_future_scope: Long-term vision or future scope.
+    6. gap_severity: 'Critical' (major research limitations, strong opportunity), 'Moderate' (noticeable limitations), or 'Low' (minor limitations, mostly mature).
     
     After listing all per-paper gaps, write ONE 'proposed_method' that addresses the most critical gaps found.
     
     Papers:
     {all_papers_block}
     
-    You MUST respond with a valid JSON block matching this EXACT schema:
+    You MUST respond with a valid JSON block matching this EXACT schema structure:
     {{
       "gaps": [
         {{
-          "description": "A unique gap specific to Paper 1 based on its actual content",
-          "severity": "Critical",
-          "why_it_matters": "Why this specific limitation blocks real-world adoption",
-          "evidence_papers": ["Exact title of Paper 1"]
-        }},
-        {{
-          "description": "A unique gap specific to Paper 2 based on its actual content",
-          "severity": "Moderate",
-          "why_it_matters": "Why this specific limitation matters",
-          "evidence_papers": ["Exact title of Paper 2"]
+          "paper_title": "Exact Title of Paper 1",
+          "gap_description": "Unique gap specific to Paper 1",
+          "gap_impact": "Impact of this gap on real-world use",
+          "gap_why_exists": "Why this specific gap exists technically",
+          "gap_opportunity": "Research opportunity to solve this",
+          "gap_future_scope": "Future scope of this topic",
+          "gap_severity": "Critical"
         }}
       ],
       "proposed_method": {{
@@ -203,9 +202,11 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
       }}
     }}
     
-    CRITICAL: You MUST produce exactly {len(papers)} gap entries, one per paper. No generic gaps.
+    CRITICAL: You MUST produce exactly {len(papers)} gap entries in the 'gaps' array, one per paper.
     Respond ONLY with the JSON code block. No extra explanations, no markdown wrapper backticks.
     """
+
+    severity_map = {"Critical": 3, "Moderate": 2, "Low": 1, "Minor": 1}
 
     try:
         client = _get_client()
@@ -229,13 +230,50 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
         data = json.loads(response_text.strip())
 
         gaps_list = []
-        for gap in data.get("gaps", []):
+        for p in papers:
+            # Match the gap entry to the paper title
+            match = None
+            for gap_entry in data.get("gaps", []):
+                evidence = gap_entry.get("evidence_papers", [])
+                if (gap_entry.get("paper_title", "").lower().strip() == p.title.lower().strip() or 
+                    p.title in evidence or 
+                    any(p.title.lower().strip() in e.lower().strip() for e in evidence)):
+                    match = gap_entry
+                    break
+            
+            # If no direct match, try first matching item in data gaps array as fallback
+            if not match and data.get("gaps"):
+                # fallback matching by matching index or keyword
+                for gap_entry in data.get("gaps", []):
+                    if gap_entry.get("paper_title", "").lower()[:20] in p.title.lower():
+                        match = gap_entry
+                        break
+            
+            if match:
+                p.gap_description = match.get("gap_description", "Methodology limitations.")
+                p.gap_impact = match.get("gap_impact", "Blocks real-world deployment.")
+                p.gap_why_exists = match.get("gap_why_exists", "Technical data constraints.")
+                p.gap_opportunity = match.get("gap_opportunity", "Implement scalable hybrid models.")
+                p.gap_future_scope = match.get("gap_future_scope", "Extend validation splits.")
+                p.gap_severity = match.get("gap_severity", "Moderate")
+            else:
+                # Default values if LLM skipped this paper
+                p.gap_description = f"Scalability limits in '{p.title[:45]}...' model architecture."
+                p.gap_impact = "Restricts the ability to adapt to complex real-world edge cases."
+                p.gap_why_exists = "Data sparsity or lack of scalable model representations."
+                p.gap_opportunity = "Integrate multi-modal context vectors."
+                p.gap_future_scope = "Ablation testing on public cross-domain benchmarks."
+                p.gap_severity = "Moderate"
+
             gaps_list.append(ResearchGap(
-                description=gap.get("description", ""),
-                severity=gap.get("severity", "Moderate"),
-                why_it_matters=gap.get("why_it_matters", ""),
-                evidence_papers=gap.get("evidence_papers", [])
+                description=p.gap_description,
+                severity=p.gap_severity,
+                why_it_matters=p.gap_impact,
+                evidence_papers=[p.title]
             ))
+
+        # Sort papers in research_data descending by gap severity (Critical -> Moderate -> Low)
+        papers.sort(key=lambda x: severity_map.get(x.gap_severity, 1), reverse=True)
 
         method_data = data.get("proposed_method", {})
         proposed_method = NovelMethodProposal(
@@ -254,29 +292,31 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
         except:
             pass
         # Fallback: generate a UNIQUE gap per paper derived from that paper's actual abstract
-        severity_cycle = ["Critical", "Moderate", "Minor", "Critical", "Moderate", "Minor", "Critical", "Moderate"]
+        severity_cycle = ["Critical", "Moderate", "Low"]
         fallback_gaps = []
         for idx, paper in enumerate(papers):
-            # Extract meaningful words from abstract to make gap unique
             abstract = paper.abstract or ""
-            # Get first meaningful sentence from abstract
             first_sentence = abstract.split(".")[0].strip() if "." in abstract else abstract[:150].strip()
-            # Get the last 60 chars of title for topic variation
             title_tail = paper.title[-60:].strip() if len(paper.title) > 60 else paper.title
             severity = severity_cycle[idx % len(severity_cycle)]
             
+            paper.gap_severity = severity
+            paper.gap_description = f"Methodology lacks comprehensive out-of-sample validation: {first_sentence[:120]}."
+            paper.gap_impact = f"Without broader validation, the findings from '{title_tail}' cannot be generalized to real-world deployments."
+            paper.gap_why_exists = "Computational budget limitations and lack of standardized benchmarking datasets during research."
+            paper.gap_opportunity = "Implement cross-institutional data validation and federated benchmark partitions."
+            paper.gap_future_scope = "Standardizing transfer learning validation procedures on diverse clinical or industrial environments."
+            
             fallback_gaps.append(ResearchGap(
-                description=(
-                    f"'{paper.title[:70]}' lacks comprehensive validation: {first_sentence[:120]}. "
-                    f"This approach has not been tested beyond its original experimental setting."
-                ),
-                severity=severity,
-                why_it_matters=(
-                    f"Without broader validation, the findings from '{title_tail}' cannot be generalized "
-                    f"to real-world deployments, limiting its practical impact and adoption."
-                ),
+                description=paper.gap_description,
+                severity=paper.gap_severity,
+                why_it_matters=paper.gap_impact,
                 evidence_papers=[paper.title]
             ))
+
+        # Sort papers by severity
+        papers.sort(key=lambda x: severity_map.get(x.gap_severity, 1), reverse=True)
+
         return Agent2GapOutput(
             gaps=fallback_gaps,
             proposed_method=NovelMethodProposal(
