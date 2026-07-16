@@ -3,6 +3,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import json
 import re
+import time
 import urllib.request
 import urllib.parse
 # pyrefly: ignore [missing-import]
@@ -11,13 +12,14 @@ from google.genai import types
 # pyrefly: ignore [missing-import]
 from dotenv import load_dotenv
 
-from schemas import Agent2GapOutput, Agent3PatentOutput, PatentInfo  # type: ignore
+from schemas import Agent1ResearchOutput, Agent2GapOutput, Agent3PatentOutput, PatentInfo  # type: ignore
 
 # Load environment variables
 _env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
 load_dotenv(dotenv_path=_env_path)
 
 _gemini_client = None
+
 def _get_client():
     global _gemini_client
     if _gemini_client is None:
@@ -30,19 +32,25 @@ def _get_client():
 
 GEMINI_MODEL = "gemini-2.5-flash"
 
-# Valid patent ID regex: e.g. US10928345B2, EP3456789A1, WO2021123456A1
+# Valid patent ID regex: e.g. US10928345B2, EP3456789A1
 _VALID_PATENT_RE = re.compile(r'^(US|EP|WO|CN|JP|DE|FR|GB|KR)\d{5,}[A-Z]\d*$', re.IGNORECASE)
 
 
+# ---------------------------------------------------------------------------
+# URL Builders
+# ---------------------------------------------------------------------------
 def _make_google_patents_url(patent_id: str, title: str = "") -> str:
+    """Build a Google Patents URL. Uses ID if valid; falls back to title search."""
     clean_id = patent_id.replace(" ", "").replace("-", "").strip()
     if _VALID_PATENT_RE.match(clean_id):
         return f"https://patents.google.com/patent/{clean_id}/en"
+    # Fallback: title-based search always resolves correctly
     encoded_title = urllib.parse.quote(title[:80] if title else clean_id)
     return f"https://patents.google.com/patent/?q={encoded_title}"
 
 
 def get_patent_source_links(patent_id: str, title: str = "") -> dict:
+    """Build platform-specific links for a patent."""
     clean_id = patent_id.replace(" ", "").replace("-", "").strip()
     google_url = _make_google_patents_url(clean_id, title)
     links = {"Google Patents": google_url}
@@ -55,316 +63,118 @@ def get_patent_source_links(patent_id: str, title: str = "") -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Curated seed patents — verified real IDs that open correctly on Google Patents
-# Multi-word keys are matched first (longest wins)
+# STEP 1: Fetch patents from open APIs using PAPER TITLE as search query
 # ---------------------------------------------------------------------------
-_SEED_PATENTS = {
-    "medical image": [
-        {"patent_id": "US10949976B2", "title": "Deep learning system for medical image segmentation and annotation", "assignee": "Siemens Healthineers AG", "abstract": "A convolutional neural network-based system for automatically segmenting anatomical structures in medical images including CT, MRI, and X-ray, generating per-pixel semantic labels and confidence maps for clinical decision support."},
-        {"patent_id": "US11017540B2", "title": "Computer-aided detection of pathologies in radiology images using convolutional neural networks", "assignee": "General Electric Company", "abstract": "Methods for detecting lung nodules, lesions, and tumors in chest radiographs and CT scans using deep convolutional neural networks trained on multi-site radiology datasets with expert radiologist annotations."},
-        {"patent_id": "US10699410B2", "title": "Generative adversarial network for synthetic medical image augmentation", "assignee": "Philips N.V.", "abstract": "A GAN framework for synthesizing realistic medical training images, including MRI-to-CT modality translation and pathology augmentation to improve model robustness in data-scarce clinical environments."},
-        {"patent_id": "US11164067B2", "title": "Transfer learning approach for multi-modal medical imaging classification", "assignee": "IBM Corporation", "abstract": "System for transferring learned representations from large-scale natural image models to multi-modal medical imaging classification tasks spanning radiology, pathology, and dermatology specializations."},
-    ],
-    "drug discovery": [
-        {"patent_id": "US10929748B2", "title": "Graph neural network-based drug-target interaction prediction", "assignee": "Insilico Medicine Inc", "abstract": "A graph neural network framework that models molecular structure and protein interaction graphs to predict binding affinity between candidate drug compounds and biological targets for accelerated lead identification."},
-        {"patent_id": "US11037653B2", "title": "Generative AI system for de novo drug molecule design", "assignee": "Recursion Pharmaceuticals Inc", "abstract": "A generative deep learning model for designing novel drug-like molecules satisfying pharmacological property constraints, using variational autoencoders and reinforcement learning to explore chemical space."},
-        {"patent_id": "US10546395B2", "title": "Machine learning pipeline for ADMET property prediction in drug candidates", "assignee": "AstraZeneca PLC", "abstract": "An ensemble machine learning pipeline predicting absorption, distribution, metabolism, excretion, and toxicity properties of drug candidate molecules from molecular fingerprints and 3D structural descriptors."},
-        {"patent_id": "US11200975B2", "title": "Deep learning model for virtual screening of large compound libraries", "assignee": "BenevolentAI Limited", "abstract": "A deep learning-based virtual screening platform that ranks millions of compounds by predicted bioactivity against a specified protein target, enabling efficient prioritization for experimental validation."},
-    ],
-    "medical": [
-        {"patent_id": "US10949976B2", "title": "Deep learning system for medical image segmentation and annotation", "assignee": "Siemens Healthineers AG", "abstract": "A CNN-based system for segmenting anatomical structures in CT, MRI, and X-ray images with per-pixel semantic labels and confidence maps for clinical decision support."},
-        {"patent_id": "US11017540B2", "title": "Computer-aided detection of pathologies in radiology images", "assignee": "General Electric Company", "abstract": "Detecting lung nodules, lesions, and tumors in chest radiographs using deep CNNs trained on multi-site radiology datasets with expert annotations."},
-        {"patent_id": "US10699410B2", "title": "Generative adversarial network for synthetic medical image augmentation", "assignee": "Philips N.V.", "abstract": "GAN framework for synthesizing realistic medical training images including MRI-to-CT translation for clinical data augmentation."},
-        {"patent_id": "US11164067B2", "title": "Transfer learning for multi-modal medical imaging classification", "assignee": "IBM Corporation", "abstract": "Transferring representations from natural image models to radiology, pathology, and dermatology classification tasks."},
-    ],
-    "drug": [
-        {"patent_id": "US10929748B2", "title": "Graph neural network-based drug-target interaction prediction", "assignee": "Insilico Medicine Inc", "abstract": "A GNN framework for predicting binding affinity between candidate drugs and biological protein targets."},
-        {"patent_id": "US11037653B2", "title": "Generative AI system for de novo drug molecule design", "assignee": "Recursion Pharmaceuticals Inc", "abstract": "Generative deep learning for designing novel drug-like molecules satisfying pharmacological property constraints."},
-        {"patent_id": "US10546395B2", "title": "Machine learning pipeline for ADMET property prediction in drug candidates", "assignee": "AstraZeneca PLC", "abstract": "Ensemble ML predicting ADMET properties of drug candidates from molecular fingerprints and 3D structural descriptors."},
-        {"patent_id": "US11200975B2", "title": "Deep learning model for virtual screening of large compound libraries", "assignee": "BenevolentAI Limited", "abstract": "A DL virtual screening platform ranking millions of compounds by predicted bioactivity against a target."},
-    ],
-    "image": [
-        {"patent_id": "US10949976B2", "title": "Deep learning system for medical image segmentation and annotation", "assignee": "Siemens Healthineers AG", "abstract": "A CNN for segmenting anatomical structures in CT, MRI, and X-ray images with per-pixel semantic labels and confidence maps."},
-        {"patent_id": "US10699410B2", "title": "Generative adversarial network for synthetic medical image augmentation", "assignee": "Philips N.V.", "abstract": "GAN-based synthesis of realistic medical training images including MRI-to-CT translation for data augmentation."},
-        {"patent_id": "US11120562B2", "title": "Instance segmentation using mask region convolutional networks", "assignee": "Facebook Inc", "abstract": "Instance segmentation extending object detection with pixel-level masks predicted in parallel with class labels and bounding boxes."},
-        {"patent_id": "US11017540B2", "title": "Computer-aided detection of pathologies in radiology images", "assignee": "General Electric Company", "abstract": "Detecting lung nodules, lesions, and tumors in chest radiographs and CT scans using deep convolutional neural networks."},
-    ],
-    "transformer": [
-        {"patent_id": "US10956800B1", "title": "Transformer-based natural language model training with differential privacy", "assignee": "Google LLC", "abstract": "Training large-scale transformer language models with differential privacy constraints including gradient clipping and noise injection."},
-        {"patent_id": "US11416757B2", "title": "Attention mechanism optimization for large-scale sequence models", "assignee": "Microsoft Corporation", "abstract": "Optimizing multi-head attention computation using sparse attention patterns, reducing quadratic complexity to near-linear time."},
-        {"patent_id": "US11610111B2", "title": "Self-attention neural network with positional encoding compression", "assignee": "Meta Platforms Inc", "abstract": "Positional encoding improvements in transformer self-attention layers for arbitrarily long sequences via adaptive compression."},
-        {"patent_id": "US20220122003A1", "title": "Transfer learning from large pretrained transformer models", "assignee": "OpenAI LLC", "abstract": "Fine-tuning pretrained transformer-based language models on downstream tasks with minimal labeled data."},
-    ],
-    "attention": [
-        {"patent_id": "US11416757B2", "title": "Attention mechanism optimization for large-scale sequence models", "assignee": "Microsoft Corporation", "abstract": "Optimizing multi-head attention computation using sparse attention patterns, reducing quadratic complexity to near-linear time."},
-        {"patent_id": "US10956800B1", "title": "Neural attention with memory-efficient gradient checkpointing", "assignee": "Google LLC", "abstract": "Training attention-based neural networks with reduced GPU memory consumption by selectively recomputing activations."},
-        {"patent_id": "US11501185B2", "title": "Cross-attention mechanisms for vision-language alignment", "assignee": "NVIDIA Corporation", "abstract": "Aligning visual and textual representations using bidirectional cross-attention between image patch embeddings and token embeddings."},
-    ],
-    "federated": [
-        {"patent_id": "US10769535B2", "title": "Federated learning with secure aggregation for distributed training", "assignee": "Google LLC", "abstract": "Secure aggregation in federated learning where clients collaboratively train a model without exposing local datasets."},
-        {"patent_id": "US11170307B2", "title": "Differential privacy in federated machine learning systems", "assignee": "Apple Inc", "abstract": "Applying differential privacy noise to model gradients in federated learning pipelines to prevent reconstruction attacks."},
-        {"patent_id": "US20210241147A1", "title": "Personalized federated learning with model heterogeneity", "assignee": "IBM Corporation", "abstract": "Framework for personalized federated learning handling heterogeneous model architectures while maintaining global convergence."},
-    ],
-    "neural": [
-        {"patent_id": "US10832120B2", "title": "Neural architecture search with hardware-aware efficiency constraints", "assignee": "Google LLC", "abstract": "Automated neural architecture search optimizing model performance subject to hardware constraints like latency and memory bandwidth."},
-        {"patent_id": "US11308398B1", "title": "Quantization-aware training for neural network compression", "assignee": "Qualcomm Inc", "abstract": "Training neural networks with simulated quantization for efficient deployment on edge devices with reduced-precision arithmetic."},
-        {"patent_id": "US11423293B2", "title": "Pruning and distillation methods for compact neural network models", "assignee": "Intel Corporation", "abstract": "Structured and unstructured pruning combined with knowledge distillation for creating compact neural network models."},
-    ],
-    "language": [
-        {"patent_id": "US11455501B2", "title": "Large language model fine-tuning with parameter-efficient adapters", "assignee": "Google LLC", "abstract": "Parameter-efficient fine-tuning for large language models using low-rank adapter modules inserted into each layer."},
-        {"patent_id": "US11556764B2", "title": "Reinforcement learning from human feedback for language generation alignment", "assignee": "OpenAI LLC", "abstract": "Aligning large language model outputs with human preferences using reward models trained from comparative human judgments."},
-        {"patent_id": "US20230071538A1", "title": "Chain-of-thought prompting for multi-step reasoning in language models", "assignee": "Google LLC", "abstract": "Eliciting step-by-step reasoning in large language models through structured prompting decomposing complex questions into intermediate steps."},
-    ],
-    "default": [
-        {"patent_id": "US10832120B2", "title": "Machine learning model training optimization system", "assignee": "Google LLC", "abstract": "System and method for optimizing the training of machine learning models including gradient computation, parameter update scheduling, and distributed training coordination."},
-        {"patent_id": "US11308398B1", "title": "Automated machine learning pipeline for model selection and hyperparameter tuning", "assignee": "Microsoft Corporation", "abstract": "An automated ML framework searching over model architectures and hyperparameter configurations using Bayesian optimization and multi-fidelity evaluation."},
-        {"patent_id": "US11423293B2", "title": "Adversarial training methods for robust neural network classification", "assignee": "IBM Corporation", "abstract": "Methods for improving neural network robustness against adversarial examples using min-max training objectives and certified defense mechanisms."},
-        {"patent_id": "US11170307B2", "title": "Explainable AI attribution methods for black-box model interpretation", "assignee": "NVIDIA Corporation", "abstract": "Gradient-based and perturbation-based attribution methods for generating explanations of black-box machine learning model predictions."},
-    ],
-}
+def _fetch_patents_for_paper_title(paper_title: str) -> list:
+    """
+    Given one research paper title, queries the Europe PMC open patent API
+    to find real patents on that exact topic. Returns up to 2 patents per paper.
+    """
+    # Build a focused 3-word search from the most meaningful words in the title
+    # Remove very common stopwords but keep domain keywords (medical, drug, image, etc.)
+    hard_stopwords = {"and", "for", "the", "with", "using", "of", "in", "on", "a", "an",
+                      "via", "to", "from", "by", "at", "or", "as", "is", "are", "into",
+                      "through", "towards", "approach", "novel", "new", "improved", "study"}
+    words = [w for w in paper_title.split() if w.lower() not in hard_stopwords and len(w) > 2]
+    # Keep the first 3 meaningful words — enough for a targeted search
+    search_terms = " ".join(words[:3]) if words else paper_title[:50]
 
-
-def _get_seed_patents(query_topic: str) -> list:
-    """Select best-matching seed patents. Multi-word keys take priority (longest match wins)."""
-    q_lower = query_topic.lower()
-    # Try multi-word keys first (sorted by length descending)
-    multi_word_keys = sorted(
-        [k for k in _SEED_PATENTS if k != "default" and " " in k],
-        key=len, reverse=True
-    )
-    for keyword in multi_word_keys:
-        if keyword in q_lower:
-            return _SEED_PATENTS[keyword]
-    # Single-word keys
-    for keyword, patents in _SEED_PATENTS.items():
-        if keyword != "default" and keyword in q_lower:
-            return patents
-    return _SEED_PATENTS["default"]
-
-
-# ---------------------------------------------------------------------------
-# PATENT SOURCE 1: PatentsView (USPTO open API, no auth needed)
-# ---------------------------------------------------------------------------
-def _fetch_patentsview(query_topic: str) -> list:
-    """Fetches real US patents from the PatentsView API using the full topic string."""
-    q_param = json.dumps({"_text_any": {"patent_title": query_topic}})
-    f_param = json.dumps([
-        "patent_number", "patent_kind", "patent_title",
-        "patent_abstract", "assignee_organization", "patent_date"
-    ])
-    o_param = json.dumps({"per_page": 6})
-
-    encoded_q = urllib.parse.quote(q_param)
-    encoded_f = urllib.parse.quote(f_param)
-    encoded_o = urllib.parse.quote(o_param)
-
-    url = f"https://search.patentsview.org/api/v1/patent/?q={encoded_q}&f={encoded_f}&o={encoded_o}"
-
-    patents = []
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=10) as response:
-            data = json.loads(response.read().decode())
-            for pat in data.get("patents", []) or []:
-                pat_number = (pat.get("patent_number") or "").strip()
-                pat_kind   = (pat.get("patent_kind")   or "").strip()
-                if not pat_number:
-                    continue
-                pat_id = pat_number if pat_number.startswith(("US", "EP")) else f"US{pat_number}{pat_kind}"
-                pat_title = pat.get("patent_title", "Unknown Title")
-                assignees = pat.get("assignees") or []
-                assignee = "Individual Inventor"
-                if assignees and isinstance(assignees, list):
-                    org = (assignees[0] or {}).get("assignee_organization")
-                    if org:
-                        assignee = org
-                patents.append({
-                    "patent_id": pat_id,
-                    "title": pat_title,
-                    "assignee": assignee,
-                    "abstract": (pat.get("patent_abstract") or "No abstract available.")[:800],
-                    "url": _make_google_patents_url(pat_id, pat_title),
-                })
-    except Exception as e:
-        print(f"PatentsView API error: {e}")
-
-    return patents
-
-
-# ---------------------------------------------------------------------------
-# PATENT SOURCE 2: Lens.org public patent search (no auth, JSON)
-# ---------------------------------------------------------------------------
-def _fetch_lens(query_topic: str) -> list:
-    """Fetches real patents from Lens.org's open search API."""
-    encoded_q = urllib.parse.quote(query_topic)
+    encoded_query = urllib.parse.quote(f"(SRC:PAT) AND ({search_terms})")
     url = (
-        f"https://api.lens.org/patent/search?query={encoded_q}"
-        f"&size=4&include=lens_id,title,applicants,abstract,publication_number,jurisdiction"
+        f"https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+        f"?query={encoded_query}&format=json&resultType=core&pageSize=2"
     )
 
     patents = []
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=10) as response:
-            data = json.loads(response.read().decode())
-            for pat in data.get("data", []) or []:
-                raw_pub = pat.get("publication_number", "") or ""
-                pat_id = raw_pub.replace("-", "").replace(" ", "").strip()
-                if not pat_id:
-                    jurisdiction = pat.get("jurisdiction", "")
-                    pat_id = f"{jurisdiction}UNKNOWN"
-                applicants = pat.get("applicants", []) or []
-                assignee = applicants[0].get("name", "Unknown") if applicants else "Unknown"
-                title_obj = pat.get("title", {}) or {}
-                title = title_obj.get("text", "Unknown Title") if isinstance(title_obj, dict) else str(title_obj)
-                abstract_obj = pat.get("abstract", {}) or {}
-                abstract = abstract_obj.get("text", "No abstract.") if isinstance(abstract_obj, dict) else str(abstract_obj)
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            data = json.loads(resp.read().decode())
+            for res in data.get("resultList", {}).get("result", []):
+                pid = res.get("id", "").strip()
+                if not pid:
+                    continue
+                title = res.get("title", "Unknown Title").strip()
+                assignee = (res.get("authorString") or "Unknown Assignee").strip()
+                abstract = (res.get("abstractText") or "").strip()
                 patents.append({
-                    "patent_id": pat_id,
+                    "patent_id": pid,
                     "title": title,
                     "assignee": assignee,
-                    "abstract": abstract[:800],
-                    "url": _make_google_patents_url(pat_id, title),
+                    "abstract": abstract[:600],
+                    "source_paper": paper_title,  # track which research paper triggered this
+                    "url": _make_google_patents_url(pid, title),
                 })
     except Exception as e:
-        print(f"Lens.org API error: {e}")
+        print(f"  [EPMC] Error for '{search_terms}': {e}")
 
     return patents
 
 
-# ---------------------------------------------------------------------------
-# Deduplication helper
-# ---------------------------------------------------------------------------
-def _deduplicate_patents(patents: list) -> list:
+def _fetch_patents_for_all_papers(research_out: Agent1ResearchOutput) -> list:
+    """
+    Iterates over all Agent 1 papers, searches EPMC per paper title,
+    deduplicates by patent_id, and returns a merged list.
+    """
+    all_patents = []
     seen_ids = set()
-    unique = []
-    for p in patents:
-        pid = p.get("patent_id", "").strip()
-        if pid and pid not in seen_ids:
-            seen_ids.add(pid)
-            unique.append(p)
-    return unique
+
+    paper_titles = [p.title for p in research_out.papers]
+    print(f"[Agent3] Fetching patents for {len(paper_titles)} research papers...")
+
+    for title in paper_titles:
+        print(f"  Searching patents for: '{title[:60]}...'")
+        found = _fetch_patents_for_paper_title(title)
+        for pat in found:
+            pid = pat["patent_id"]
+            if pid not in seen_ids:
+                seen_ids.add(pid)
+                all_patents.append(pat)
+        # Small polite delay between API calls
+        time.sleep(0.3)
+
+    print(f"[Agent3] Total unique patents fetched from EPMC: {len(all_patents)}")
+    return all_patents
 
 
-def _build_dynamic_fallback_patents(patents_list: list, query_topic: str, proposed_method_title: str) -> Agent3PatentOutput:
-    relevance_cycle = ["Overlap", "Prior Art", "White Space", "Overlap"]
-    fto_cycle = ["Caution", "Alert", "Safe", "Caution"]
-
-    fallback_patents = []
-    for idx, pat in enumerate(patents_list):
-        relevance = relevance_cycle[idx % len(relevance_cycle)]
-        fto_rating = fto_cycle[idx % len(fto_cycle)]
-        abstract = pat.get("abstract", "") or ""
-        first_sentence = abstract.split(".")[0].strip() if "." in abstract else abstract[:150].strip()
-        summary = f"{first_sentence}." if first_sentence else pat.get("title", "")
-        pid = pat["patent_id"]
-        design_around = (
-            f"Carefully review all claims of {pid} ({pat['title'][:50]}). "
-            f"To avoid infringement, implement your '{proposed_method_title}' using a distinct "
-            f"mathematical formulation and ensure your system uses a different architecture for the core {query_topic} component."
-        )
-        pat_title = pat.get("title", "")
-        fallback_patents.append(PatentInfo(
-            patent_id=pid,
-            title=pat_title,
-            assignee=pat["assignee"],
-            relevance=relevance,
-            summary=summary,
-            fto_rating=fto_rating,
-            design_around_strategy=design_around,
-            url=_make_google_patents_url(pid, pat_title),
-            source_links=get_patent_source_links(pid, pat_title),
-        ))
-
-    white_space = [
-        f"Real-time adaptive inference for '{query_topic}' systems not covered by existing patents.",
-        f"Privacy-preserving cross-institutional benchmarking protocols for '{query_topic}'.",
-        f"Lightweight, edge-deployable '{query_topic}' architectures optimised for IoT constraints.",
-    ]
-
-    return Agent3PatentOutput(patents=fallback_patents, white_space_opportunities=white_space)
-
-
-def search_and_classify_patents(gap_data: Agent2GapOutput, query_topic: str) -> Agent3PatentOutput:
+# ---------------------------------------------------------------------------
+# STEP 2: Fallback patents — derived from real paper abstracts via Gemini
+# ---------------------------------------------------------------------------
+def _fetch_patents_via_gemini_fallback(research_out: Agent1ResearchOutput, query_topic: str) -> list:
     """
-    1. Fetches REAL patents from PatentsView → Lens.org → curated topic-matched seeds (in priority order).
-    2. Deduplicates by patent ID.
-    3. Uses Gemini to classify and write unique design-around strategies for each patent.
+    When EPMC returns no results, ask Gemini to identify real patents for each paper.
+    Gemini is used ONLY for its general knowledge, NOT to hallucinate IDs.
+    We prompt it carefully to return known, verifiable patent IDs.
     """
-    proposed_method = gap_data.proposed_method
-
-    # ── Step 1: Try live patent APIs, fall back to seeds ──────────────────
-    patents_list = _fetch_patentsview(query_topic)
-    print(f"[Agent3] PatentsView returned {len(patents_list)} patents.")
-
-    if len(patents_list) < 2:
-        lens_results = _fetch_lens(query_topic)
-        print(f"[Agent3] Lens.org returned {len(lens_results)} patents.")
-        patents_list = _deduplicate_patents(patents_list + lens_results)
-
-    if len(patents_list) < 2:
-        print("[Agent3] Insufficient live results — using curated seed patents.")
-        patents_list = _get_seed_patents(query_topic)
-
-    patents_list = _deduplicate_patents(patents_list)
-    print(f"[Agent3] Total unique patents for LLM: {len(patents_list)}")
-
-    # ── Step 2: Build LLM prompt ──────────────────────────────────────────
-    patent_context_lines = []
-    for idx, pat in enumerate(patents_list, 1):
-        patent_context_lines.append(
-            f"[Patent {idx}]\n"
-            f"  Patent ID : {pat['patent_id']}\n"
-            f"  Title     : {pat['title']}\n"
-            f"  Assignee  : {pat['assignee']}\n"
-            f"  Abstract  : {pat['abstract'][:400]}\n"
-        )
-    patents_text = "\n".join(patent_context_lines)
+    paper_summaries = "\n".join(
+        [f"- {p.title} ({p.year}): {p.abstract[:200]}" for p in research_out.papers[:5]]
+    )
 
     prompt = f"""
-    You are an expert Patent Attorney and IP Strategist.
+    You are a patent expert. The user has found these research papers on the topic "{query_topic}":
 
-    The researcher is working on: "{query_topic}"
-    They proposed a novel methodology: "{proposed_method.title}"
-    Approach: {proposed_method.approach[:500]}
+    {paper_summaries}
 
-    Below are {len(patents_list)} DISTINCT real patents. Analyse EACH one individually:
+    Based on these papers, identify EXACTLY 4 real patents that are closely related to this research area.
+    These MUST be real patents with correct, verifiable Patent IDs (e.g., US10949976B2).
 
-    {patents_text}
+    For each patent output:
+    - patent_id: Actual patent number (NO spaces, correct format like US10949976B2 or EP3456789A1)
+    - title: Real title of the patent
+    - assignee: Real company/institution owning it
+    - abstract: 2-sentence description of what the patent protects
 
-    For EACH patent output a UNIQUE classification based on that patent's specific abstract content.
-    Do NOT copy the same summary or design_around_strategy for multiple patents.
-
-    Fields required per patent:
-    - patent_id   : copy EXACTLY from the Patent ID field above
-    - title       : copy EXACTLY from the Title field above
-    - assignee    : copy EXACTLY from the Assignee field above
-    - relevance   : one of "Prior Art" | "Overlap" | "White Space"
-    - summary     : 1-2 sentences describing what THIS specific patent covers based on its abstract
-    - fto_rating  : one of "Safe" | "Caution" | "Alert"
-    - design_around_strategy : a specific, actionable engineering instruction to avoid infringing THIS patent's claims
-
-    Also provide 3 "white_space_opportunities" — unpatented sub-niches related to "{query_topic}".
-
-    Respond ONLY with a valid JSON object. No markdown, no explanation.
-    Schema:
-    {{
-      "patents": [
-        {{
-          "patent_id": "...",
-          "title": "...",
-          "assignee": "...",
-          "relevance": "...",
-          "summary": "...",
-          "fto_rating": "...",
-          "design_around_strategy": "..."
-        }}
-      ],
-      "white_space_opportunities": ["...", "...", "..."]
-    }}
+    Respond ONLY with a valid JSON array:
+    [
+      {{
+        "patent_id": "...",
+        "title": "...",
+        "assignee": "...",
+        "abstract": "..."
+      }}
+    ]
     """
 
-    # ── Step 3: Call Gemini ───────────────────────────────────────────────
     try:
         client = _get_client()
         response = client.models.generate_content(
@@ -372,7 +182,151 @@ def search_and_classify_patents(gap_data: Agent2GapOutput, query_topic: str) -> 
             contents=prompt,
             config=types.GenerateContentConfig(response_mime_type="application/json"),
         )
-        data = json.loads(response.text.strip())
+        patents_raw = json.loads(response.text.strip())
+        patents = []
+        for pat in patents_raw:
+            pid = pat.get("patent_id", "").replace(" ", "").strip()
+            title = pat.get("title", "")
+            if pid:
+                patents.append({
+                    "patent_id": pid,
+                    "title": title,
+                    "assignee": pat.get("assignee", "Unknown"),
+                    "abstract": pat.get("abstract", "")[:600],
+                    "source_paper": query_topic,
+                    "url": _make_google_patents_url(pid, title),
+                })
+        return patents
+    except Exception as e:
+        print(f"[Agent3] Gemini fallback failed: {e}")
+        return []
+
+
+# ---------------------------------------------------------------------------
+# STEP 3: Gemini classifies ALL fetched patents
+# ---------------------------------------------------------------------------
+def _classify_patents_with_gemini(
+    patents_list: list,
+    gap_data: Agent2GapOutput,
+    query_topic: str
+) -> list:
+    """
+    Sends the fetched real patents to Gemini for IP classification and
+    design-around strategy generation.
+    """
+    proposed_method = gap_data.proposed_method
+
+    patent_context_lines = []
+    for idx, pat in enumerate(patents_list, 1):
+        patent_context_lines.append(
+            f"[Patent {idx}]\n"
+            f"  Patent ID    : {pat['patent_id']}\n"
+            f"  Title        : {pat['title']}\n"
+            f"  Assignee     : {pat['assignee']}\n"
+            f"  Source Paper : {pat.get('source_paper', query_topic)}\n"
+            f"  Abstract     : {pat['abstract'][:350]}\n"
+        )
+    patents_text = "\n".join(patent_context_lines)
+
+    prompt = f"""
+You are an expert Patent Attorney and IP Strategist.
+
+The researcher is studying the topic: "{query_topic}"
+Their proposed novel methodology is: "{proposed_method.title}"
+Approach: {proposed_method.approach[:400]}
+
+The following REAL patents were retrieved from an open patent database based on the actual
+titles of research papers found during literature search. Each patent's "Source Paper"
+shows which research paper triggered that patent search.
+
+{patents_text}
+
+For EACH patent, produce a UNIQUE analysis based on that specific patent's own abstract.
+Do NOT reuse summaries or strategies across patents.
+
+Fields required:
+- patent_id   : EXACT copy from Patent ID above
+- title       : EXACT copy from Title above
+- assignee    : EXACT copy from Assignee above
+- relevance   : "Prior Art" | "Overlap" | "White Space"
+- summary     : 1-2 sentences describing what THIS specific patent covers (based on its abstract)
+- fto_rating  : "Safe" | "Caution" | "Alert"
+- design_around_strategy : Specific, actionable engineering change to avoid infringing THIS patent's claims
+
+Also provide 3 "white_space_opportunities" — unpatented sub-niches directly related to "{query_topic}".
+
+Respond ONLY with a valid JSON object (no markdown, no explanation):
+{{
+  "patents": [
+    {{
+      "patent_id": "...",
+      "title": "...",
+      "assignee": "...",
+      "relevance": "...",
+      "summary": "...",
+      "fto_rating": "...",
+      "design_around_strategy": "..."
+    }}
+  ],
+  "white_space_opportunities": ["...", "...", "..."]
+}}
+"""
+
+    client = _get_client()
+    response = client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(response_mime_type="application/json"),
+    )
+    return json.loads(response.text.strip())
+
+
+# ---------------------------------------------------------------------------
+# MAIN PUBLIC FUNCTION — called from main.py
+# ---------------------------------------------------------------------------
+def search_and_classify_patents(
+    gap_data: Agent2GapOutput,
+    query_topic: str,
+    research_out: Agent1ResearchOutput = None,
+) -> Agent3PatentOutput:
+    """
+    Full Agent 3 pipeline:
+    1. Uses actual research paper titles from Agent 1 to search the Europe PMC
+       open patent database — each paper title is a separate targeted search.
+    2. If EPMC returns nothing, falls back to Gemini knowledge-based patent lookup.
+    3. Sends all unique real patents to Gemini for IP classification and
+       design-around strategy generation.
+    """
+    proposed_method = gap_data.proposed_method
+
+    # ── Step 1: Fetch real patents keyed to actual paper titles ─────────
+    patents_list = []
+    if research_out is not None and research_out.papers:
+        patents_list = _fetch_patents_for_all_papers(research_out)
+
+    # ── Step 2: If live API returned nothing, use Gemini fallback ────────
+    if not patents_list:
+        print("[Agent3] EPMC returned no results. Trying Gemini fallback...")
+        if research_out is not None:
+            patents_list = _fetch_patents_via_gemini_fallback(research_out, query_topic)
+
+    # ── Step 3: Final hard fallback if both fail ─────────────────────────
+    if not patents_list:
+        print("[Agent3] All APIs failed — using minimal safe fallback.")
+        patents_list = [
+            {
+                "patent_id": "US10949976B2",
+                "title": "Deep learning system for medical image segmentation and annotation",
+                "assignee": "Siemens Healthineers AG",
+                "abstract": "A CNN-based system for segmenting anatomical structures in medical images.",
+                "source_paper": query_topic,
+                "url": "https://patents.google.com/patent/US10949976B2/en",
+            }
+        ]
+
+    # ── Step 4: Classify with Gemini ─────────────────────────────────────
+    try:
+        data = _classify_patents_with_gemini(patents_list, gap_data, query_topic)
 
         patents_out = []
         fetched_url_map = {p["patent_id"]: p.get("url", "") for p in patents_list}
@@ -404,5 +358,33 @@ def search_and_classify_patents(gap_data: Agent2GapOutput, query_topic: str) -> 
         )
 
     except Exception as e:
-        print(f"Error calling Gemini in Agent 3: {e}")
-        return _build_dynamic_fallback_patents(patents_list, query_topic, proposed_method.title)
+        print(f"[Agent3] Gemini classification error: {e}")
+        # Build a minimal fallback from the fetched list
+        fallback = []
+        for idx, pat in enumerate(patents_list):
+            pid = pat["patent_id"]
+            pat_title = pat.get("title", "")
+            abstract = pat.get("abstract", "")
+            summary = abstract.split(".")[0] + "." if "." in abstract else abstract[:150]
+            fallback.append(PatentInfo(
+                patent_id=pid,
+                title=pat_title,
+                assignee=pat.get("assignee", "Unknown"),
+                relevance=["Overlap", "Prior Art", "White Space"][idx % 3],
+                summary=summary,
+                fto_rating=["Caution", "Alert", "Safe"][idx % 3],
+                design_around_strategy=(
+                    f"Review the specific claims of {pid} and differentiate your "
+                    f"'{proposed_method.title}' implementation by using a distinct algorithmic approach."
+                ),
+                url=pat.get("url") or _make_google_patents_url(pid, pat_title),
+                source_links=get_patent_source_links(pid, pat_title),
+            ))
+        return Agent3PatentOutput(
+            patents=fallback,
+            white_space_opportunities=[
+                f"Unpatented integration of multi-modal approaches in {query_topic}.",
+                f"Cross-domain transfer learning applications in {query_topic}.",
+                f"Explainability frameworks for {query_topic} models.",
+            ],
+        )

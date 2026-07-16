@@ -67,7 +67,7 @@ def trigger_agent_pipeline(request: ResearchRequest):
     
     # 3. Agent 3: Patent Discovery
     print("Executing Agent 3: Patent Landscape Check...")
-    patent_out = search_and_classify_patents(gap_out, topic)
+    patent_out = search_and_classify_patents(gap_out, topic, research_out)
     
     # 4. Construct Unified State
     state = ProjectReportState(
