@@ -32,8 +32,8 @@ def _get_client():
 
 GEMINI_MODEL = "gemini-2.5-flash"
 
-# Valid patent ID regex: e.g. US10928345B2, EP3456789A1
-_VALID_PATENT_RE = re.compile(r'^(US|EP|WO|CN|JP|DE|FR|GB|KR)\d{5,}[A-Z]\d*$', re.IGNORECASE)
+# Valid patent ID regex: e.g. US10928345B2, EP3456789A1, WO2009034499
+_VALID_PATENT_RE = re.compile(r'^(US|EP|WO|CN|JP|DE|FR|GB|KR)\d{5,}([A-Z]\d*)?$', re.IGNORECASE)
 
 
 # ---------------------------------------------------------------------------
@@ -44,9 +44,9 @@ def _make_google_patents_url(patent_id: str, title: str = "") -> str:
     clean_id = patent_id.replace(" ", "").replace("-", "").strip()
     if _VALID_PATENT_RE.match(clean_id):
         return f"https://patents.google.com/patent/{clean_id}/en"
-    # Fallback: title-based search always resolves correctly
+    # Fallback: title-based search always resolves correctly (uses the root search URL)
     encoded_title = urllib.parse.quote(title[:80] if title else clean_id)
-    return f"https://patents.google.com/patent/?q={encoded_title}"
+    return f"https://patents.google.com/?q={encoded_title}"
 
 
 def get_patent_source_links(patent_id: str, title: str = "") -> dict:
