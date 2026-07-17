@@ -33,6 +33,10 @@ class PaperMetadata(BaseModel):
     gap_opportunity: str = Field(default="Not analyzed", description="Actionable next step/research opportunity")
     gap_future_scope: str = Field(default="Not analyzed", description="Long-term vision/future scope")
     gap_severity: str = Field(default="Low", description="Severity classification: Critical, Moderate, or Low")
+    # Full text content for deep extraction
+    full_text: str = Field(default="", description="Clean full text or segment fetched from PMC/ArXiv")
+
+
 
 
 class Agent1ResearchOutput(BaseModel):

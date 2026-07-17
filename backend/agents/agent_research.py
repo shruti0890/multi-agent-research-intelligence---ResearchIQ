@@ -9,6 +9,7 @@ import re
 # pyrefly: ignore [missing-import]
 from google import genai
 # pyrefly: ignore [missing-import]
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from schemas import Agent1ResearchOutput, PaperMetadata
 
@@ -224,6 +225,90 @@ def _make_unique_fallback_summary(paper: dict, query: str) -> tuple:
     
     return notebook_summary, technical_execution
 
+
+# --- Full Text Fetchers for Deep Literature Analysis ---
+def _fetch_arxiv_full_text(arxiv_url: str) -> str:
+    """Fetches full-text HTML of an arXiv paper from ar5iv/arxiv.org."""
+    match = re.search(r'arxiv\.org/(?:abs|pdf)/([0-9.]+)', arxiv_url)
+    if not match:
+        return ""
+    arxiv_id = match.group(1)
+    
+    # Try ar5iv.org HTML converter (very reliable for converting arXiv PDFs to clean HTML)
+    url = f"https://ar5iv.org/html/{arxiv_id}"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            soup = BeautifulSoup(resp.read().decode('utf-8'), 'html.parser')
+            text = re.sub(r'\s+', ' ', soup.get_text(separator=' ')).strip()
+            # Keep first 12,000 chars (methodology + intro + discussion)
+            return text[:12000]
+    except Exception as e:
+        print(f"  [ArXiv FT] ar5iv failed for {arxiv_id}: {e}")
+        
+    # Try direct arXiv HTML
+    url = f"https://arxiv.org/html/{arxiv_id}"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            soup = BeautifulSoup(resp.read().decode('utf-8'), 'html.parser')
+            text = re.sub(r'\s+', ' ', soup.get_text(separator=' ')).strip()
+            return text[:12000]
+    except Exception as e:
+        print(f"  [ArXiv FT] arxiv.org HTML failed for {arxiv_id}: {e}")
+        
+    return ""
+
+
+def _fetch_pmc_full_text(url: str) -> str:
+    """Queries Europe PMC open API for full text XML and parses it."""
+    match = re.search(r'(PMC\d+)', url, re.IGNORECASE)
+    if not match:
+        return ""
+    pmcid = match.group(1).upper()
+    api_url = f"https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid}/fullTextXML"
+    try:
+        req = urllib.request.Request(api_url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            xml_data = resp.read()
+            root = ET.fromstring(xml_data)
+            
+            body_text = []
+            for elem in root.iter():
+                if elem.tag == 'body' or elem.tag.endswith('body'):
+                    body_text.append(''.join(elem.itertext()))
+            
+            if body_text:
+                text = " ".join(body_text)
+            else:
+                text = ''.join(root.itertext())
+                
+            text = re.sub(r'\s+', ' ', text).strip()
+            return text[:12000]
+    except Exception as e:
+        print(f"  [PMC FT] PMC XML retrieval failed for {pmcid}: {e}")
+    return ""
+
+
+def _fetch_full_text_for_paper(paper_dict: dict) -> str:
+    """Tries all available fetchers for a paper dict and returns full text or empty."""
+    url = paper_dict.get("url", "")
+    title = paper_dict.get("title", "")
+    print(f"[Agent1] Fetching full-text content for: '{title[:45]}...'")
+    
+    # 1. Check if it is an arXiv link
+    if "arxiv.org" in url:
+        return _fetch_arxiv_full_text(url)
+        
+    # 2. Check if it contains PMC ID (for PMC full text)
+    if "pmc" in url.lower() or "pmcid" in url.lower():
+        return _fetch_pmc_full_text(url)
+        
+    # 3. Else, return empty (metadata abstract will be used as fallback)
+    return ""
+
+
+
 # --- Orchestrated Search & NotebookLM LLM Card Parsing ---
 def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput:
     """
@@ -254,6 +339,10 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
             
     # Take top 8 unique candidates (increased from 5)
     candidates = deduplicated[:8]
+    
+    # Download full text for each candidate to enable deep gap extraction
+    for p in candidates:
+        p["full_text"] = _fetch_full_text_for_paper(p)
     
     # If no papers found, return fallback
     if not candidates:
@@ -345,7 +434,10 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
         data = json.loads(response_text.strip())
         
         parsed_papers = []
+        candidates_map = {normalize_title(c["title"]): c.get("full_text", "") for c in candidates}
         for p in data.get("papers", []):
+            norm = normalize_title(p.get("title", ""))
+            ft = candidates_map.get(norm, "")
             parsed_papers.append(PaperMetadata(
                 title=p.get("title", ""),
                 authors=p.get("authors", []),
@@ -364,7 +456,8 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
                 challenges=p.get("challenges", "Not extracted"),
                 future_outcomes=p.get("future_outcomes", "Not extracted"),
                 innovation_score=int(p.get("innovation_score", 70)),
-                research_significance=p.get("research_significance", "Not analyzed")
+                research_significance=p.get("research_significance", "Not analyzed"),
+                full_text=ft
             ))
         
         # Sort papers: first group by relevance_rank (High=3, Medium=2, Low=1),
@@ -435,7 +528,8 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
                 research_significance=(
                     f"This research contributes to the field of {query} by leveraging {tech_exec}. "
                     f"It has strong academic value for researchers working on related algorithmic architectures."
-                )
+                ),
+                full_text=p.get("full_text", "")
             ))
         
         # Compound sort: rank group first (High > Medium > Low), then score descending

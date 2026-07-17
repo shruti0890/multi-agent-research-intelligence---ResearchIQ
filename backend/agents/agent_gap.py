@@ -326,7 +326,9 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
             severity = severity_cycle[idx % len(severity_cycle)]
             paper.gap_severity = severity
             
-            # 1. Try to extract dynamic gap description from the paper's own abstract/problem/challenges
+            # 1. Try to extract dynamic gap description from the paper's downloaded full_text first,
+            # then fall back to abstract/problem/challenges.
+            full_text = getattr(paper, 'full_text', '') or ""
             abstract = paper.abstract or ""
             problem = getattr(paper, 'problem_statement', '') or ''
             challenges = getattr(paper, 'challenges', '') or ''
@@ -335,12 +337,22 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
             extracted_desc = ""
             limitation_words = ["limit", "lack", "suffer", "restrict", "challenge", "however", "although", "but", "bottleneck", "drawback", "missing"]
             
-            # Split abstract into sentences and scan for limitation words
-            sentences = [s.strip() for s in abstract.split(".") if len(s.strip()) > 20]
-            for sent in sentences:
-                if any(w in sent.lower() for w in limitation_words) and "no abstract" not in sent.lower():
-                    extracted_desc = sent
-                    break
+            # First, try to scan the full text of the paper
+            if full_text and len(full_text) > 200:
+                ft_sentences = [s.strip() for s in full_text.split(".") if len(s.strip()) > 30]
+                # Look specifically for sentences containing limitation keywords
+                for sent in ft_sentences:
+                    if any(w in sent.lower() for w in limitation_words) and "no abstract" not in sent.lower() and len(sent) < 300:
+                        extracted_desc = sent
+                        break
+            
+            # Second, fall back to abstract if full text didn't yield anything
+            if not extracted_desc:
+                sentences = [s.strip() for s in abstract.split(".") if len(s.strip()) > 20]
+                for sent in sentences:
+                    if any(w in sent.lower() for w in limitation_words) and "no abstract" not in sent.lower():
+                        extracted_desc = sent
+                        break
             
             if not extracted_desc and challenges and challenges not in ("Not extracted", "Not available in abstract.", "Not detailed"):
                 extracted_desc = f"The paper identifies challenges: {challenges}"
