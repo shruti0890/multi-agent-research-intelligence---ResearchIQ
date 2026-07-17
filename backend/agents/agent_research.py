@@ -282,7 +282,7 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
     2. relevance_rank: 'High' if relevance_score >= 0.80, 'Medium' if 0.60 <= relevance_score <= 0.79, and 'Low' if relevance_score < 0.60.
     3. innovation_score: Integer between 0 and 100 representing the paper's innovation level. Ensure scores are distinct and reflect the technical novelty.
     4. research_significance: A short paragraph analyzing the paper's academic impact, industrial impact, and contribution to innovation.
-    5. notebook_summary: A 2-sentence plain-English description of WHAT THIS SPECIFIC PAPER does and what makes it different.
+    5. notebook_summary: Write exactly 3 plain-English bullet points (no technical jargon) for THIS SPECIFIC PAPER. Format as: '• What it studies: [1 sentence] • How it does it: [1 sentence] • What it achieves: [1 sentence]'. These MUST be unique to this paper and easy for a non-expert to understand.
     6. technical_execution: A 1-sentence description of the core algorithm or technique THIS PAPER uses.
     7. datasets: List of dataset names used. If not mentioned, use ["Not specified"].
     8. problem_statement: What specific research problem or gap does this paper identify and tackle?
@@ -367,8 +367,13 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
                 research_significance=p.get("research_significance", "Not analyzed")
             ))
         
-        # Sort papers automatically based on relevance score descending
-        parsed_papers.sort(key=lambda x: x.relevance_score, reverse=True)
+        # Sort papers: first group by relevance_rank (High=3, Medium=2, Low=1),
+        # then within each group sort by relevance_score descending
+        rank_order = {"High": 3, "Medium": 2, "Low": 1}
+        parsed_papers.sort(
+            key=lambda x: (rank_order.get(x.relevance_rank, 1), x.relevance_score),
+            reverse=True
+        )
         return Agent1ResearchOutput(query=query, papers=parsed_papers)
         
     except Exception as e:
@@ -394,6 +399,17 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
                 relevance_rank = "Medium"
             else:
                 relevance_rank = "Low"
+
+            # Build a truly unique, paper-specific notebook_summary from the abstract
+            sents = [s.strip() for s in abstract.split(".") if len(s.strip()) > 30]
+            what_it_studies = sents[0] if len(sents) > 0 else p["title"]
+            how_it_does_it = sents[1] if len(sents) > 1 else tech_exec
+            what_it_achieves = sents[2] if len(sents) > 2 else f"Demonstrates {query} improvements."
+            nb_summary = (
+                f"• What it studies: {what_it_studies}. "
+                f"• How it does it: {how_it_does_it}. "
+                f"• What it achieves: {what_it_achieves}."
+            )
                 
             innovation_score = int(min(98, max(45, 65 + (overlap * 6) - (idx * 4))))
             
@@ -422,5 +438,10 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
                 )
             ))
         
-        fallback_papers.sort(key=lambda x: x.relevance_score, reverse=True)
+        # Compound sort: rank group first (High > Medium > Low), then score descending
+        rank_order = {"High": 3, "Medium": 2, "Low": 1}
+        fallback_papers.sort(
+            key=lambda x: (rank_order.get(x.relevance_rank, 1), x.relevance_score),
+            reverse=True
+        )
         return Agent1ResearchOutput(query=query, papers=fallback_papers)

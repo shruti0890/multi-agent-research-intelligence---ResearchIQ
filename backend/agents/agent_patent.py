@@ -69,133 +69,149 @@ def get_patent_source_links(patent_id: str, title: str = "", url: str = "") -> d
 
 
 # ---------------------------------------------------------------------------
-# STEP 1: Fetch patents from open APIs using PAPER TITLE as search query
+# STEP 1a: Fetch real patents from Google Patents (free, no API key needed)
 # ---------------------------------------------------------------------------
-def _fetch_patents_for_paper_title(paper_title: str) -> list:
-    """
-    Given one research paper title, queries the Europe PMC open patent API
-    to find real patents on that exact topic. Returns up to 2 patents per paper.
-    """
-    hard_stopwords = {"and", "for", "the", "with", "using", "of", "in", "on", "a", "an",
-                      "via", "to", "from", "by", "at", "or", "as", "is", "are", "into",
-                      "through", "towards", "approach", "novel", "new", "improved", "study"}
-    words = [w for w in paper_title.split() if w.lower() not in hard_stopwords and len(w) > 2]
-    search_terms = " ".join(words[:3]) if words else paper_title[:50]
+def _build_search_terms(topic: str) -> str:
+    """Extract key technical terms from a topic for patent search."""
+    stopwords = {"and", "for", "the", "with", "using", "of", "in", "on", "a", "an",
+                 "via", "to", "from", "by", "at", "or", "as", "is", "are", "into",
+                 "through", "towards", "approach", "novel", "new", "improved", "study",
+                 "method", "system", "based", "deep", "learning", "machine"}
+    words = [w for w in topic.split() if w.lower() not in stopwords and len(w) > 2]
+    return " ".join(words[:5]) if words else topic[:60]
 
-    encoded_query = urllib.parse.quote(f"(SRC:PAT) AND ({search_terms})")
-    url = (
-        f"https://www.ebi.ac.uk/europepmc/webservices/rest/search"
-        f"?query={encoded_query}&format=json&resultType=core&pageSize=2"
-    )
 
+def _fetch_google_patents(query_topic: str) -> list:
+    """
+    Queries the PatentsView API (USPTO open data) for real granted US patents
+    matching the research topic. Returns up to 5 real patent records.
+    """
+    search_terms = _build_search_terms(query_topic)
     patents = []
+
+    # PatentsView API — free, no API key, returns real USPTO patent data
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        payload = json.dumps({
+            "q": {"_text_any": {"patent_abstract": search_terms}},
+            "f": ["patent_number", "patent_title", "assignee_organization",
+                  "patent_abstract", "patent_date"],
+            "o": {"per_page": 5}
+        }).encode()
+        req = urllib.request.Request(
+            "https://search.patentsview.org/api/v1/patent/",
+            data=payload,
+            headers={"Content-Type": "application/json", "User-Agent": "ResearchIQ/1.0"},
+            method="POST"
+        )
         with urllib.request.urlopen(req, timeout=12) as resp:
             data = json.loads(resp.read().decode())
-            for res in data.get("resultList", {}).get("result", []):
-                pid = res.get("id", "").strip()
-                if not pid:
+            for pat in data.get("patents", []) or []:
+                num = (pat.get("patent_number") or "").strip()
+                if not num:
                     continue
-                title = res.get("title", "Unknown Title").strip()
-                assignee = (res.get("authorString") or "Unknown Assignee").strip()
-                abstract = (res.get("abstractText") or "").strip()
+                pid = f"US{num}B2" if not num.upper().startswith("US") else num
+                title = (pat.get("patent_title") or "Unknown Title").strip()
+                assignee = ""
+                assignees = pat.get("assignee_organization") or []
+                if isinstance(assignees, list) and assignees:
+                    assignee = assignees[0].get("assignee_organization", "") if isinstance(assignees[0], dict) else str(assignees[0])
+                abstract = (pat.get("patent_abstract") or "")[:600]
+                patents.append({
+                    "patent_id": pid,
+                    "title": title,
+                    "assignee": assignee or "USPTO Patent Holder",
+                    "abstract": abstract,
+                    "source_paper": query_topic,
+                    "url": f"https://patents.google.com/patent/{pid}/en",
+                })
+        print(f"  [PatentsView] Found {len(patents)} patents for '{search_terms[:40]}'")
+    except Exception as e:
+        print(f"  [PatentsView] Error: {e}")
+
+    return patents
+
+
+# ---------------------------------------------------------------------------
+# STEP 1b: Fetch real patents from Lens.org (free open patent database)
+# ---------------------------------------------------------------------------
+def _fetch_lens_org_patents(query_topic: str) -> list:
+    """
+    Queries the Lens.org patent search API for real international patents
+    (USPTO, EPO, WIPO). Returns up to 5 real patent records.
+    """
+    search_terms = _build_search_terms(query_topic)
+    patents = []
+
+    try:
+        encoded_q = urllib.parse.quote(search_terms)
+        url = (
+            f"https://api.lens.org/patent/search?"
+            f"q={encoded_q}&size=5&sort=relevance"
+        )
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "ResearchIQ/1.0", "Accept": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            data = json.loads(resp.read().decode())
+            for hit in data.get("data", []) or []:
+                lens_id = hit.get("lens_id", "")
+                pub_key = hit.get("publication_number", lens_id)
+                title_obj = hit.get("title", {})
+                title = title_obj.get("text", "Unknown Patent Title") if isinstance(title_obj, dict) else str(title_obj)
+                owners = hit.get("owners", []) or []
+                assignee = owners[0].get("name", "Unknown Assignee") if owners and isinstance(owners[0], dict) else "Unknown Assignee"
+                abstract_obj = hit.get("abstract", {})
+                abstract = abstract_obj.get("text", "") if isinstance(abstract_obj, dict) else str(abstract_obj)
+                pid = pub_key.replace(" ", "").replace("-", "").strip() or lens_id
                 patents.append({
                     "patent_id": pid,
                     "title": title,
                     "assignee": assignee,
                     "abstract": abstract[:600],
-                    "source_paper": paper_title,
-                    "url": _make_google_patents_url(pid, title),
+                    "source_paper": query_topic,
+                    "url": f"https://www.lens.org/lens/patent/{lens_id}" if lens_id else _make_google_patents_url(pid, title),
                 })
+        print(f"  [Lens.org] Found {len(patents)} patents for '{search_terms[:40]}'")
     except Exception as e:
-        print(f"  [EPMC] Error for '{search_terms}': {e}")
+        print(f"  [Lens.org] Error: {e}")
 
     return patents
 
 
-def _fetch_crossref_for_paper_title(paper_title: str) -> list:
-    """
-    Queries the completely open Crossref API for standard/report patent-equivalents
-    related to the research paper title. Returns up to 2 items.
-    """
-    hard_stopwords = {"and", "for", "the", "with", "using", "of", "in", "on", "a", "an",
-                      "via", "to", "from", "by", "at", "or", "as", "is", "are", "into",
-                      "through", "towards", "approach", "novel", "new", "improved", "study"}
-    words = [w for w in paper_title.split() if w.lower() not in hard_stopwords and len(w) > 2]
-    search_terms = " ".join(words[:3]) if words else paper_title[:50]
-
-    encoded_query = urllib.parse.quote(f"patent {search_terms}")
-    url = f"https://api.crossref.org/works?query={encoded_query}&rows=2"
-
-    patents = []
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (mailto:dev@researchiq.ai)"})
-        with urllib.request.urlopen(req, timeout=10) as response:
-            data = json.loads(response.read().decode())
-            items = data.get("message", {}).get("items", [])
-            for item in items:
-                title = item.get("title", ["Unknown Title"])[0]
-                assignee = item.get("publisher", "Unknown Assignee")
-                doi = item.get("DOI", "")
-                
-                # Derive a deterministic ID from DOI to bypass API limitations
-                h = hashlib.md5(doi.encode()).hexdigest()
-                digits = "".join([c for c in h if c.isdigit()])[:8]
-                if len(digits) < 7:
-                    digits = "10928345"
-                pat_id = f"US{digits}B2"
-                
-                abstract = f"Patent-equivalent document in the field of {search_terms}, registered under DOI {doi}."
-                
-                patents.append({
-                    "patent_id": pat_id,
-                    "title": f"Patent-Equivalent: {title}",
-                    "assignee": assignee,
-                    "abstract": abstract,
-                    "source_paper": paper_title,
-                    "url": f"https://doi.org/{doi}",
-                })
-    except Exception as e:
-        print(f"  [Crossref] Error for '{search_terms}': {e}")
-        
-    return patents
-
-
+# ---------------------------------------------------------------------------
+# STEP 1 ORCHESTRATOR: Fetch from all real patent sources
+# ---------------------------------------------------------------------------
 def _fetch_patents_for_all_papers(research_out: Agent1ResearchOutput) -> list:
     """
-    Iterates over all Agent 1 papers, queries BOTH Europe PMC and Crossref APIs
-    per paper title, deduplicates by ID, and returns a merged list of real patent matches.
+    Queries PatentsView (USPTO) and Lens.org for real patents based on the
+    overall research topic, deduplicates by ID, and returns merged results.
     """
     all_patents = []
     seen_ids = set()
+    query_topic = research_out.query
 
-    paper_titles = [p.title for p in research_out.papers]
-    print(f"[Agent3] Querying multiple patent platforms (EPMC & Crossref) for {len(paper_titles)} papers...")
+    print(f"[Agent3] Querying real patent databases (PatentsView + Lens.org) for topic: '{query_topic[:60]}'...")
 
-    for title in paper_titles:
-        print(f"  Searching APIs for: '{title[:60]}...'")
-        
-        # API 1: Europe PMC
-        found_epmc = _fetch_patents_for_paper_title(title)
-        for pat in found_epmc:
-            pid = pat["patent_id"]
-            if pid not in seen_ids:
-                seen_ids.add(pid)
-                all_patents.append(pat)
-                
-        # API 2: Crossref
-        found_crossref = _fetch_crossref_for_paper_title(title)
-        for pat in found_crossref:
-            pid = pat["patent_id"]
-            if pid not in seen_ids:
-                seen_ids.add(pid)
-                all_patents.append(pat)
-                
-        # Small polite delay between API requests
-        time.sleep(0.3)
+    # API 1: PatentsView (USPTO open data)
+    found_pv = _fetch_google_patents(query_topic)
+    for pat in found_pv:
+        pid = pat["patent_id"]
+        if pid not in seen_ids:
+            seen_ids.add(pid)
+            all_patents.append(pat)
 
-    print(f"[Agent3] Merged patent fetch complete. Total unique patents found: {len(all_patents)}")
+    time.sleep(0.5)
+
+    # API 2: Lens.org international patents
+    found_lens = _fetch_lens_org_patents(query_topic)
+    for pat in found_lens:
+        pid = pat["patent_id"]
+        if pid not in seen_ids:
+            seen_ids.add(pid)
+            all_patents.append(pat)
+
+    print(f"[Agent3] Real patent fetch complete. Total unique patents found: {len(all_patents)}")
     return all_patents
 
 
@@ -213,18 +229,19 @@ def _fetch_patents_via_gemini_fallback(research_out: Agent1ResearchOutput, query
     )
 
     prompt = f"""
-    You are a patent expert. The user has found these research papers on the topic "{query_topic}":
+    You are a patent expert with deep knowledge of real patent databases (USPTO, EPO, WIPO).
+    The user is researching the topic: "{query_topic}"
 
-    {paper_summaries}
+    Based on this research area, identify EXACTLY 5 real, granted patents that are closely
+    related to the core technical concepts of this topic.
 
-    Based on these papers, identify EXACTLY 4 real patents that are closely related to this research area.
-    These MUST be real patents with correct, verifiable Patent IDs (e.g., US10949976B2).
-
-    For each patent output:
-    - patent_id: Actual patent number (NO spaces, correct format like US10949976B2 or EP3456789A1)
-    - title: Real title of the patent
-    - assignee: Real company/institution owning it
-    - abstract: 2-sentence description of what the patent protects
+    STRICT RULES:
+    - Patent IDs MUST be real patent numbers (e.g., US10949976B2, EP3456789A1, WO2019123456A1)
+    - Do NOT invent or fabricate patent IDs. Only include patents you know actually exist.
+    - These must be actual granted patents from USPTO, EPO, or WIPO — not research papers.
+    - Titles must be the actual patent title, not a paper title.
+    - Assignees must be real companies or institutions.
+    - Abstract must describe what the PATENT CLAIMS and PROTECTS.
 
     Respond ONLY with a valid JSON array:
     [

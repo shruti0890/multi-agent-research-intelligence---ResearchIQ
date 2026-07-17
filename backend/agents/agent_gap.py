@@ -230,25 +230,14 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
         data = json.loads(response_text.strip())
 
         gaps_list = []
-        for p in papers:
-            # Match the gap entry to the paper title
-            match = None
-            for gap_entry in data.get("gaps", []):
-                evidence = gap_entry.get("evidence_papers", [])
-                if (gap_entry.get("paper_title", "").lower().strip() == p.title.lower().strip() or 
-                    p.title in evidence or 
-                    any(p.title.lower().strip() in e.lower().strip() for e in evidence)):
-                    match = gap_entry
-                    break
-            
-            # If no direct match, try first matching item in data gaps array as fallback
-            if not match and data.get("gaps"):
-                # fallback matching by matching index or keyword
-                for gap_entry in data.get("gaps", []):
-                    if gap_entry.get("paper_title", "").lower()[:20] in p.title.lower():
-                        match = gap_entry
-                        break
-            
+        gaps_array = data.get("gaps", [])
+        for idx, p in enumerate(papers):
+            # Index-based matching: Gemini returns gaps in the same order as input papers
+            if idx < len(gaps_array):
+                match = gaps_array[idx]
+            else:
+                match = None
+
             if match:
                 p.gap_description = match.get("gap_description", "Methodology limitations.")
                 p.gap_impact = match.get("gap_impact", "Blocks real-world deployment.")
@@ -291,22 +280,40 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
             print(f"RAW RESPONSE: {response.text}")
         except:
             pass
-        # Fallback: generate a UNIQUE gap per paper derived from that paper's actual abstract
+        # Fallback: generate TRULY UNIQUE per-paper gaps using each paper's own Agent 1 fields
         severity_cycle = ["Critical", "Moderate", "Low"]
         fallback_gaps = []
         for idx, paper in enumerate(papers):
             abstract = paper.abstract or ""
-            first_sentence = abstract.split(".")[0].strip() if "." in abstract else abstract[:150].strip()
-            title_tail = paper.title[-60:].strip() if len(paper.title) > 60 else paper.title
+            # Use problem_statement, methodology, challenges from Agent 1 if available
+            problem = getattr(paper, 'problem_statement', '') or ''
+            methodology = getattr(paper, 'methodology', '') or ''
+            challenges = getattr(paper, 'challenges', '') or ''
+
+            if problem and problem not in ('Not extracted', 'Not available in abstract.'):
+                gap_desc = f"The paper tackles '{problem[:120]}' but does not fully address scalability to unseen real-world distributions."
+            else:
+                sents = [s.strip() for s in abstract.split('.') if len(s.strip()) > 20]
+                gap_desc = f"The methodology ('{sents[0][:120] if sents else paper.title[:80]}') lacks cross-domain validation, limiting broader applicability."
+
+            if methodology and methodology not in ('Not extracted',):
+                gap_why = f"The approach uses {methodology[:100]}, which has inherent computational constraints that prevent testing on large-scale heterogeneous datasets."
+            else:
+                gap_why = "Computational budget limitations and lack of standardized benchmarking datasets during research."
+
+            if challenges and challenges not in ('Not extracted',):
+                gap_impact = f"The acknowledged limitation — '{challenges[:120]}' — directly restricts real-world adoption in production environments."
+            else:
+                gap_impact = f"Without broader validation, findings from '{paper.title[:60]}...' cannot be generalized to production deployments."
+
             severity = severity_cycle[idx % len(severity_cycle)]
-            
             paper.gap_severity = severity
-            paper.gap_description = f"Methodology lacks comprehensive out-of-sample validation: {first_sentence[:120]}."
-            paper.gap_impact = f"Without broader validation, the findings from '{title_tail}' cannot be generalized to real-world deployments."
-            paper.gap_why_exists = "Computational budget limitations and lack of standardized benchmarking datasets during research."
-            paper.gap_opportunity = "Implement cross-institutional data validation and federated benchmark partitions."
-            paper.gap_future_scope = "Standardizing transfer learning validation procedures on diverse clinical or industrial environments."
-            
+            paper.gap_description = gap_desc
+            paper.gap_impact = gap_impact
+            paper.gap_why_exists = gap_why
+            paper.gap_opportunity = f"Introduce federated learning or cross-institutional benchmarks to address the gap in '{paper.title[:60]}...'"
+            paper.gap_future_scope = f"Future work should extend evaluation to multi-domain datasets and real-time deployment scenarios relevant to {research_data.query}."
+
             fallback_gaps.append(ResearchGap(
                 description=paper.gap_description,
                 severity=paper.gap_severity,

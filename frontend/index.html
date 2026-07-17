@@ -582,9 +582,14 @@
                         </p>
                         
                         <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border-left: 3px solid var(--primary); margin-bottom: 12px;">
-                            <p style="font-size: 13px; font-weight: 600; color: #93C5FD; margin-bottom: 4px;">📖 NotebookLM Card Summary:</p>
-                            <p style="font-size: 13.5px; line-height: 1.5; color: var(--text-main);">${paper.notebook_summary}</p>
+                            <p style="font-size: 13px; font-weight: 600; color: #93C5FD; margin-bottom: 8px;">📖 NotebookLM Card Summary:</p>
+                            <ul style="list-style: none; padding: 0; margin: 0;">
+                                ${paper.notebook_summary.split('•').filter(s => s.trim()).map(bullet => 
+                                    `<li style="font-size: 13px; line-height: 1.6; color: var(--text-main); padding: 3px 0; display: flex; gap: 8px;"><span style="color:#60A5FA; font-weight:700; flex-shrink:0;">→</span><span>${bullet.trim()}</span></li>`
+                                ).join('')}
+                            </ul>
                         </div>
+
                         
                         <div style="background: rgba(255,255,255,0.015); padding: 12px; border-radius: 8px; border-left: 3px solid #8B5CF6; margin-bottom: 12px;">
                             <p style="font-size: 13px; font-weight: 600; color: #C084FC; margin-bottom: 4px;">💡 Research Significance & Contribution:</p>
