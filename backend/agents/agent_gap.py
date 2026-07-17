@@ -357,12 +357,13 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
                 extracted_opp = template["opportunity"]
                 extracted_fut = template["future"]
             else:
-                # Format extracted gap cleanly
+                # Format extracted gap cleanly using both the extracted description and template-based unique attributes
+                template = gap_templates[idx % len(gap_templates)]
                 extracted_desc = f"Limitation in '{paper.title[:50]}...': {extracted_desc}"
-                extracted_impact = f"Restricts real-world deployment of '{paper.title[:50]}...' due to these validated constraints."
-                extracted_why = f"The framework's implementation of '{methodology[:60]}' was not fully optimized for heterogeneous scaling." if methodology and methodology != "Not extracted" else "Data collection sparsity and computational hardware limitations during initial testing."
-                extracted_opp = f"Extend the model with cross-domain training or modular adapter layers."
-                extracted_fut = f"Perform larger scale ablation studies on public multi-site benchmarking configurations."
+                extracted_impact = f"For '{paper.title[:50]}...': {template['impact']}"
+                extracted_why = f"Due to '{methodology[:60]}' constraints: {template['why']}" if methodology and methodology != "Not extracted" else template["why"]
+                extracted_opp = template["opportunity"]
+                extracted_fut = template["future"]
 
             paper.gap_description = extracted_desc
             paper.gap_impact = extracted_impact

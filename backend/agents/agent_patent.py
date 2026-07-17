@@ -476,15 +476,37 @@ def _filter_candidates_by_topic(patents_list: list, query_topic: str) -> list:
     if any(w in query_topic.lower() for w in finance_keywords):
         topic_words.update(finance_keywords)
 
+    # Define domain-exclusion keywords for filtering out noisy results (e.g. electrical transformers in NLP queries)
+    exclusion_words = {
+        "voltage", "contactless", "winding", "magnetic", "coil", "grid", "circuit", 
+        "current", "electricity", "transformer winding", "electrical", "engine", 
+        "vehicle", "medical image", "ultrasound", "biomedical", "tumor", 
+        "sequestration", "marine", "ocean", "seawater", "power transmission"
+    }
+
+    # Only apply exclusions if the query itself is not about these topics
+    query_lower = query_topic.lower()
+    active_exclusions = {w for w in exclusion_words if w not in query_lower}
+
     scored_patents = []
     for pat in patents_list:
-        text = (pat.get("title", "") + " " + pat.get("abstract", "")).lower()
-        score = sum(1 for w in topic_words if w in text)
+        title = pat.get("title", "")
+        abstract = pat.get("abstract", "")
+        text = (title + " " + abstract).lower()
+        
+        # If abstract contains domain-excluded words, force score to 0
+        if any(w in text for w in active_exclusions):
+            score = 0
+        else:
+            score = sum(1 for w in topic_words if w in text)
+            
         scored_patents.append((score, pat))
         
-    # Sort by score descending and return the top 4 candidates.
-    # If we have very few matches, this guarantees we still show a healthy list of patents to verify.
-    filtered = [pat for score, pat in scored_patents[:4]]
+    # Sort by score descending
+    scored_patents.sort(key=lambda x: x[0], reverse=True)
+    
+    # Only keep patents with score > 0. If none remain, let it return empty so the main function triggers fallback
+    filtered = [pat for score, pat in scored_patents if score > 0][:4]
     return filtered
 
 
