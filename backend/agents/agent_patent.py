@@ -204,8 +204,12 @@ def _fetch_patents_from_europe_pmc(query_topic: str) -> list:
 
     print(f"[Agent3] Cleaned keywords for EPMC patent search: {words}")
 
-    # Formulate different search attempts to maximize hits
-    queries = []
+    # Prioritize searching using the exact user input query
+    queries = [
+        f'SRC:PAT AND "{query_topic}"',
+        f'SRC:PAT AND ({query_topic})'
+    ]
+    # Fallback to key terms combinations if the exact query yields nothing
     if len(words) >= 2:
         queries.append(f"SRC:PAT AND ({words[0]} AND {words[1]})")
         queries.append(f"SRC:PAT AND ({words[0]} AND {words[-1]})")
