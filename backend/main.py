@@ -1,4 +1,6 @@
 import os
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
@@ -14,7 +16,7 @@ from agents.agent_patent import search_and_classify_patents
 from agents.agent_compile import compile_final_report
 
 # Load environment variables
-load_dotenv()
+load_dotenv(override=True)
 
 app = FastAPI(title="ResearchIQ Multi-Agent API", version="1.0")
 

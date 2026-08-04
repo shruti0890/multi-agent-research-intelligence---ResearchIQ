@@ -5,3 +5,4 @@ requests
 google-genai
 reportlab
 python-dotenv
+rouge-score

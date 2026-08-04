@@ -1,0 +1,13 @@
+{
+  "summary_evaluation": {
+    "rouge1_f1": 0.13725659392834236,
+    "rouge2_f1": 0.03637618650157241,
+    "rougeL_f1": 0.07873828225248149
+  },
+  "relevance_evaluation": {
+    "total_papers": 8,
+    "high_relevance_pct": 25.0,
+    "medium_relevance_pct": 75.0,
+    "low_relevance_pct": 0.0
+  }
+}

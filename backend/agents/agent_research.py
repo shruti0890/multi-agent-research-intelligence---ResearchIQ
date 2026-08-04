@@ -8,14 +8,17 @@ import json
 import re
 # pyrefly: ignore [missing-import]
 from google import genai
+from google.genai import types
 # pyrefly: ignore [missing-import]
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from schemas import Agent1ResearchOutput, PaperMetadata
+from rag_prefetcher import get_embedding_model, prefetch_top_chunks
+from sentence_transformers import util
 
 # Load environment variables — explicit path so it works when server runs from project root
 _env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
-load_dotenv(dotenv_path=_env_path)
+load_dotenv(dotenv_path=_env_path, override=True)
 
 # Configure Gemini using the new google.genai SDK
 _gemini_client = None
@@ -65,7 +68,7 @@ def fetch_arxiv(query: str, limit: int) -> list:
 def fetch_semantic_scholar(query: str, limit: int) -> list:
     papers = []
     encoded_query = urllib.parse.quote(query)
-    url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={encoded_query}&limit={limit}&fields=title,authors,year,abstract,url"
+    url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={encoded_query}&limit={limit}&fields=title,authors,year,abstract,url,citationCount"
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=6) as response:
@@ -78,7 +81,8 @@ def fetch_semantic_scholar(query: str, limit: int) -> list:
                     "year": item.get("year", 2024) or 2024,
                     "abstract": item.get("abstract") or "No abstract available.",
                     "url": item.get("url") or "",
-                    "source": "Semantic Scholar"
+                    "source": "Semantic Scholar",
+                    "citations": item.get("citationCount", 0) or 0
                 })
     except Exception as e:
         print(f"Semantic Scholar API warning: {e}")
@@ -139,7 +143,8 @@ def fetch_openalex(query: str, limit: int) -> list:
                 papers.append({
                     "title": title, "authors": authors, "year": year if year else 2024,
                     "abstract": abstract_text,
-                    "url": link, "source": "OpenAlex"
+                    "url": link, "source": "OpenAlex",
+                    "citations": item.get("cited_by_count", 0) or 0
                 })
     except Exception as e:
         print(f"OpenAlex API warning: {e}")
@@ -163,7 +168,8 @@ def fetch_europe_pmc(query: str, limit: int) -> list:
                 authors = [item.get("authorString", "Unknown")]
                 papers.append({
                     "title": title, "authors": authors, "year": year, 
-                    "abstract": abstract, "url": link, "source": "Europe PMC"
+                    "abstract": abstract, "url": link, "source": "Europe PMC",
+                    "citations": item.get("citedByCount", 0) or 0
                 })
     except Exception as e:
         print(f"Europe PMC API warning: {e}")
@@ -309,6 +315,54 @@ def _fetch_full_text_for_paper(paper_dict: dict) -> str:
 
 
 
+import math
+
+def compute_deterministic_relevance(query: str, title: str, abstract: str, year: int, citations: int = 0) -> dict:
+    """
+    Calculates a relevance score between 0.00 and 1.00 mathematically in Python:
+    Relevance = 0.4 * SemanticSimilarity + 0.4 * KeywordOverlap + 0.1 * Recency + 0.1 * Citations
+    """
+    text = f"{title} {abstract}"
+    
+    # 1. Semantic Similarity (Cosine similarity via local embeddings model)
+    try:
+        model = get_embedding_model()
+        q_vec = model.encode(query, convert_to_tensor=True)
+        t_vec = model.encode(text[:500], convert_to_tensor=True)
+        sem_score = float(util.cos_sim(q_vec, t_vec)[0][0])
+    except Exception as e:
+        print(f"  [Scoring] Cosine similarity failed, fallback: {e}")
+        sem_score = 0.5
+        
+    # 2. Keyword Jaccard Overlap
+    q_words = set(re.sub(r'[^a-z0-9\s]', '', query.lower()).split())
+    t_words = set(re.sub(r'[^a-z0-9\s]', '', text.lower()).split())
+    overlap = len(q_words & t_words)
+    kw_score = overlap / max(len(q_words), 1)
+    
+    # 3. Recency Boost (mapped 2020-2026 to 0.5-1.0)
+    current_year = 2026
+    age = max(0, current_year - year)
+    recency_score = max(0.2, 1.0 - (age * 0.1))
+    
+    # 4. Citation Weight (Logarithmic scaling)
+    cit_score = min(1.0, math.log10(citations + 1) / 3.0)
+    
+    # Combined weighted score
+    score = (0.4 * sem_score) + (0.4 * kw_score) + (0.1 * recency_score) + (0.1 * cit_score)
+    final_score = round(min(0.99, max(0.35, score)), 3)
+    
+    # Assign Rank
+    if final_score >= 0.80:
+        rank = "High"
+    elif final_score >= 0.60:
+        rank = "Medium"
+    else:
+        rank = "Low"
+        
+    return {"score": final_score, "rank": rank}
+
+
 # --- Orchestrated Search & NotebookLM LLM Card Parsing ---
 def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput:
     """
@@ -337,19 +391,52 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
             seen.add(norm)
             deduplicated.append(p)
             
+    # Calculate deterministic relevance and rank in Python first
+    for p in deduplicated:
+        cit_count = p.get("citations", 0) or 0
+        rel_info = compute_deterministic_relevance(
+            query=query,
+            title=p.get("title", ""),
+            abstract=p.get("abstract", ""),
+            year=p.get("year", 2024),
+            citations=cit_count
+        )
+        p["relevance_score"] = rel_info["score"]
+        p["relevance_rank"] = rel_info["rank"]
+        
+    # Sort all candidates: High rank first, then by relevance_score descending
+    rank_order = {"High": 3, "Medium": 2, "Low": 1}
+    deduplicated.sort(
+        key=lambda x: (rank_order.get(x["relevance_rank"], 1), x["relevance_score"]),
+        reverse=True
+    )
+    
     # Take top 8 unique candidates (increased from 5)
     candidates = deduplicated[:8]
     
     # Download full text for each candidate to enable deep gap extraction
     for p in candidates:
         p["full_text"] = _fetch_full_text_for_paper(p)
+        # Prefetch top 2 chunks (approx 600 words) matching the search query to minimize prompt context
+        text_to_chunk = p["full_text"] if p.get("full_text") else p.get("abstract", "")
+        top_chunks = prefetch_top_chunks(query, [text_to_chunk], top_k=2)
+        p["rag_chunks"] = " ".join([c["text"] for c in top_chunks])
     
-    # If no papers found, return fallback
-    if not candidates:
-        return Agent1ResearchOutput(query=query, papers=[])
-        
+    # Prepare lite_candidates to minimize prompt input tokens
+    lite_candidates = []
+    for c in candidates:
+        lite_candidates.append({
+            "title": c.get("title", ""),
+            "authors": c.get("authors", []),
+            "year": c.get("year", 2024),
+            "abstract": c.get("rag_chunks", "") or c.get("abstract", ""),
+            "url": c.get("url", ""),
+            "relevance_score": c.get("relevance_score", 0.8),
+            "relevance_rank": c.get("relevance_rank", "Medium")
+        })
+
     # Prompt LLM to analyze the papers and format matching our NotebookLM schema + deep analysis
-    num_candidates = len(candidates)
+    num_candidates = len(lite_candidates)
     prompt = f"""
     You are an expert Research Librarian similar to Google NotebookLM.
     Analyze the following {num_candidates} research papers retrieved for the topic: '{query}'.
@@ -358,17 +445,8 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
     Every field MUST be unique and specific to that paper's actual content — do NOT copy the same text across papers.
     
     Fields to extract per paper:
-    1. relevance_score: Float between 0.00 and 1.00. Calculate this mathematically using these 7 metrics (each evaluated from 0-10 based on the paper's relevance to '{query}'):
-       - Research Relevance (Weight: 20%)
-       - Technical Similarity (Weight: 20%)
-       - Methodology Alignment (Weight: 15%)
-       - Dataset Alignment (Weight: 15%)
-       - Domain Match (Weight: 10%)
-       - Innovation Level (Weight: 10%)
-       - Research Objective Match (Weight: 10%)
-       Sum the weighted metrics, then divide by 10 to get the 0.00-1.00 float.
-       Ensure every paper gets a UNIQUE, mathematically justified relevance_score. Do NOT assign identical scores unless mathematically identical.
-    2. relevance_rank: 'High' if relevance_score >= 0.80, 'Medium' if 0.60 <= relevance_score <= 0.79, and 'Low' if relevance_score < 0.60.
+    1. relevance_score: Retrieve this directly from the paper's data under 'relevance_score' and copy it verbatim. Do not compute or change it.
+    2. relevance_rank: Retrieve this directly from the paper's data under 'relevance_rank' and copy it verbatim. Do not change it.
     3. innovation_score: Integer between 0 and 100 representing the paper's innovation level. Ensure scores are distinct and reflect the technical novelty.
     4. research_significance: A short paragraph analyzing the paper's academic impact, industrial impact, and contribution to innovation.
     5. notebook_summary: Write exactly 3 plain-English bullet points (no technical jargon) for THIS SPECIFIC PAPER. Format as: '• What it studies: [1 sentence] • How it does it: [1 sentence] • What it achieves: [1 sentence]'. These MUST be unique to this paper and easy for a non-expert to understand.
@@ -382,7 +460,7 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
     13. future_outcomes: What future work or research directions do the authors suggest?
     
     Papers data:
-    {json.dumps(candidates, indent=2)}
+    {json.dumps(lite_candidates, indent=2)}
     
     CRITICAL RULES:
     - Every field for each paper MUST be derived from THAT PAPER'S OWN title and abstract only.
@@ -420,7 +498,11 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
     
     try:
         client = _get_client()
-        response = client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json")
+        )
         response_text = response.text.strip()
         
         # Clean possible markdown code fences

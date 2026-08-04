@@ -17,7 +17,7 @@ from schemas import Agent1ResearchOutput, Agent2GapOutput, Agent3PatentOutput, P
 
 # Load environment variables
 _env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
-load_dotenv(dotenv_path=_env_path)
+load_dotenv(dotenv_path=_env_path, override=True)
 
 _gemini_client = None
 
@@ -407,8 +407,8 @@ Some of these patents may be completely off-topic (e.g. medical patents appearin
 
 YOUR TASK:
 1. Filter out any patents that are completely off-topic or irrelevant to the main topic "{query_topic}".
-2. Select the top 4 most relevant patents from the remaining list.
-3. For each of the top 4 selected patents, produce a UNIQUE analysis based on that specific patent's own abstract. Do NOT reuse summaries or strategies across patents.
+2. Select the top 2 most relevant patents from the remaining list.
+3. For each of the top 2 selected patents, produce a UNIQUE analysis based on that specific patent's own abstract. Do NOT reuse summaries or strategies across patents.
 4. Calculate a unique relevance_score (integer between 0 and 100) for each patent using these six factors:
    - Technical similarity
    - Problem similarity
@@ -420,16 +420,18 @@ YOUR TASK:
 5. Provide a detailed match_explanation explaining why this patent was matched.
 6. Sort the list of patents in descending order of relevance_score.
 
+CRITICAL CONSTRAINT: Every field ('match_explanation', 'summary', and 'design_around_strategy') MUST be exactly 1 sentence long. Be extremely concise.
+
 Fields required per patent:
 - patent_id   : EXACT copy from Patent ID above
 - title       : EXACT copy from Title above
 - assignee    : EXACT copy from Assignee above
 - relevance   : "Prior Art" | "Overlap" | "White Space"
 - relevance_score : Integer between 0 and 100
-- match_explanation : Detailed explanation of the match
-- summary     : 1-2 sentences describing what THIS specific patent covers (based on its abstract)
+- match_explanation : Detailed explanation of the match (max 1 sentence)
+- summary     : Exactly 1 sentence describing what THIS specific patent covers (based on its abstract)
 - fto_rating  : "Safe" | "Caution" | "Alert"
-- design_around_strategy : Specific, actionable engineering change to avoid infringing THIS patent's claims
+- design_around_strategy : Specific, actionable engineering change to avoid infringing THIS patent's claims (max 1 sentence)
 
 Also provide 3 "white_space_opportunities" — unpatented sub-niches directly related to "{query_topic}".
 
@@ -506,7 +508,7 @@ def _filter_candidates_by_topic(patents_list: list, query_topic: str) -> list:
     scored_patents.sort(key=lambda x: x[0], reverse=True)
     
     # Only keep patents with score > 0. If none remain, let it return empty so the main function triggers fallback
-    filtered = [pat for score, pat in scored_patents if score > 0][:4]
+    filtered = [pat for score, pat in scored_patents if score > 0][:2]
     return filtered
 
 

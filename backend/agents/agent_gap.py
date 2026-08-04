@@ -15,7 +15,7 @@ from schemas import Agent1ResearchOutput, Agent2GapOutput, ResearchGap, NovelMet
 
 # Load environment variables — explicit path so it works when server runs from project root
 _env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
-load_dotenv(dotenv_path=_env_path)
+load_dotenv(dotenv_path=_env_path, override=True)
 
 # Configure Gemini using the new google.genai SDK
 _gemini_client = None
@@ -149,13 +149,25 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
             )
         )
 
-    # Build per-paper text entries (use abstract + deep fields if available)
+    # Build per-paper text entries using Python-extracted limitation snippets to minimize prompt input tokens
     paper_entries = []
+    limitation_words = ["limit", "lack", "suffer", "restrict", "challenge", "however", "although", "but", "bottleneck", "drawback", "missing"]
+    
     for paper in papers:
+        # Scan full_text first, then abstract
+        text_to_scan = getattr(paper, 'full_text', '') or paper.abstract or ""
+        sents = [s.strip() for s in text_to_scan.split(".") if len(s.strip()) > 30]
+        snippet = ""
+        for s in sents:
+            if any(w in s.lower() for w in limitation_words) and len(s) < 250:
+                snippet = s
+                break
+        if not snippet and len(sents) > 0:
+            snippet = sents[0]
+            
         entry = (
-            f"Title: {paper.title}\n"
-            f"Authors: {', '.join(paper.authors)} (Year: {paper.year})\n"
-            f"Abstract: {paper.abstract[:500]}\n"
+            f"Title: {paper.title} ({paper.year})\n"
+            f"Limitation Snippet: {snippet}\n"
         )
         paper_entries.append(entry)
 
@@ -168,13 +180,16 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
     Your task:
     For EACH paper listed below, identify ONE unique research gap that is SPECIFIC to that paper.
     Every gap MUST be different — do NOT repeat the same gap for different papers.
+    
+    CRITICAL CONSTRAINT: Every field ('gap_description', 'gap_impact', 'gap_why_exists', 'gap_opportunity', 'gap_future_scope') MUST be exactly 1 sentence long. Be extremely concise.
+    
     For each paper, determine:
-    1. gap_description: The specific research gap or limitations of the proposed method (dataset constraints, scalability concerns, computational challenges, missing evaluations, explainability issues, security, or generalization).
+    1. gap_description: The specific research gap or limitation (dataset constraints, scalability, compute, explainability, or generalization).
     2. gap_impact: Why this limitation blocks real-world adoption or industrial deployment.
-    3. gap_why_exists: The technical or data reason why the authors left this gap (e.g. data unavailability, compute cost, lack of theoretical framework).
-    4. gap_opportunity: Actionable next step or research opportunity to solve this gap.
+    3. gap_why_exists: The technical or data reason why the authors left this gap.
+    4. gap_opportunity: Actionable next step or research opportunity to solve this.
     5. gap_future_scope: Long-term vision or future scope.
-    6. gap_severity: 'Critical' (major research limitations, strong opportunity), 'Moderate' (noticeable limitations), or 'Low' (minor limitations, mostly mature).
+    6. gap_severity: 'Critical', 'Moderate', or 'Low'.
     
     After listing all per-paper gaps, write ONE 'proposed_method' that addresses the most critical gaps found.
     

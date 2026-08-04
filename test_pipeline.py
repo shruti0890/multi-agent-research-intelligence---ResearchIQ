@@ -8,6 +8,7 @@ from agents.agent_gap import cluster_and_analyze_gaps
 from agents.agent_patent import search_and_classify_patents
 from agents.agent_compile import compile_final_report
 from schemas import ProjectReportState
+from evaluator import run_evaluation
 
 topic = "Neural Networks for Financial Forecasting"
 
@@ -47,3 +48,6 @@ state = ProjectReportState(
 )
 pdf_path = compile_final_report(state, output_dir=".")
 print(f"PDF compiled successfully at: {pdf_path}")
+
+print("\nStep 5: Running Quantitative Evaluation Layer...")
+run_evaluation(state)

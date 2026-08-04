@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 
 from schemas import ProjectReportState  # type: ignore
 
-load_dotenv()
+load_dotenv(override=True)
 
 _gemini_client = None
 def _get_client():
@@ -204,16 +204,34 @@ def compile_final_report(state: ProjectReportState, output_dir: str = ".") -> st
         f"for the topic: '{state.topic}'."
     )
     recs_narrative = "• Align research objectives with unpatented white spaces.\n• Focus on solving scalability constraints identified in current methods."
-    
+    lite_papers = []
+    for p in state.research.papers:
+        lite_papers.append({
+            "title": p.title,
+            "year": p.year,
+            "relevance_rank": p.relevance_rank,
+            "gap_description": p.gap_description,
+            "gap_severity": p.gap_severity
+        })
+        
+    lite_patents = []
+    for pat in state.patents.patents:
+        lite_patents.append({
+            "patent_id": pat.patent_id,
+            "title": pat.title,
+            "relevance": pat.relevance,
+            "fto_rating": pat.fto_rating
+        })
+
     prompt = f"""
     You are a Lead Research Director compiling a final Executive Summary and Strategic Recommendations.
     Review the following structured inputs:
     
-    Research Papers:
-    {json.dumps([p.model_dump() for p in state.research.papers], indent=2)}
+    Research Papers Summary:
+    {json.dumps(lite_papers, indent=2)}
     
-    Active Patents:
-    {json.dumps([pat.model_dump() for pat in state.patents.patents], indent=2)}
+    Active Patents Summary:
+    {json.dumps(lite_patents, indent=2)}
     
     Write a JSON response with exactly two keys:
     1. "summary": A cohesive 2-paragraph Executive Summary summarizing trends in the papers for '{state.topic}' and how the proposed method solves the gaps.
