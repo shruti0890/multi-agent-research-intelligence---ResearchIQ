@@ -149,76 +149,108 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
             )
         )
 
-    # Build per-paper text entries using Python-extracted limitation snippets to minimize prompt input tokens
+    # Build per-paper entries using the extractive fact sheets.
+    # Each paper's fact sheet contains verbatim sentences from all detected sections.
+    # This replaces the previous single-sentence "limitation snippet" approach.
     paper_entries = []
-    limitation_words = ["limit", "lack", "suffer", "restrict", "challenge", "however", "although", "but", "bottleneck", "drawback", "missing"]
     
     for paper in papers:
-        # Scan full_text first, then abstract
-        text_to_scan = getattr(paper, 'full_text', '') or paper.abstract or ""
-        sents = [s.strip() for s in text_to_scan.split(".") if len(s.strip()) > 30]
-        snippet = ""
-        for s in sents:
-            if any(w in s.lower() for w in limitation_words) and len(s) < 250:
-                snippet = s
-                break
-        if not snippet and len(sents) > 0:
-            snippet = sents[0]
-            
+        # Prefer the fact_sheet_text (extractive compression output); fall back to abstract.
+        fact_sheet = getattr(paper, 'fact_sheet_text', '') or ""
+        paper_id = getattr(paper, 'paper_id', paper.title[:20])
+
+        if fact_sheet.strip():
+            content_block = fact_sheet
+        else:
+            # Graceful fallback: use available metadata fields
+            content_block = (
+                f"Abstract: {paper.abstract}\n"
+                f"Challenges: {getattr(paper, 'challenges', 'Not extracted')}\n"
+                f"Future Work: {getattr(paper, 'future_outcomes', 'Not extracted')}\n"
+                f"Results: {getattr(paper, 'results', 'Not extracted')}\n"
+            )
+
+        compression_info = ""
+        if hasattr(paper, 'compression_ratio') and paper.compression_ratio > 0:
+            compression_info = (
+                f"[Compression: {paper.compression_ratio * 100:.1f}% reduction, "
+                f"{paper.section_coverage * 100:.0f}% section coverage]"
+            )
+
         entry = (
-            f"Title: {paper.title} ({paper.year})\n"
-            f"Limitation Snippet: {snippet}\n"
+            f"=== PAPER: {paper.title} ({paper.year}) {compression_info} ===\n"
+            f"{content_block}\n"
         )
         paper_entries.append(entry)
 
-    all_papers_block = "\n---\n".join(paper_entries)
+    all_papers_block = "\n\n".join(paper_entries)
 
     prompt = f"""
-    You are an expert Scientific Researcher and Critical Analyst.
-    I will give you a list of {len(papers)} research papers on the topic: '{research_data.query}'.
-    
-    Your task:
-    For EACH paper listed below, identify ONE unique research gap that is SPECIFIC to that paper.
-    Every gap MUST be different — do NOT repeat the same gap for different papers.
-    
-    CRITICAL CONSTRAINT: Every field ('gap_description', 'gap_impact', 'gap_why_exists', 'gap_opportunity', 'gap_future_scope') MUST be exactly 1 sentence long. Be extremely concise.
-    
-    For each paper, determine:
-    1. gap_description: The specific research gap or limitation (dataset constraints, scalability, compute, explainability, or generalization).
-    2. gap_impact: Why this limitation blocks real-world adoption or industrial deployment.
-    3. gap_why_exists: The technical or data reason why the authors left this gap.
-    4. gap_opportunity: Actionable next step or research opportunity to solve this.
-    5. gap_future_scope: Long-term vision or future scope.
-    6. gap_severity: 'Critical', 'Moderate', or 'Low'.
-    
-    After listing all per-paper gaps, write ONE 'proposed_method' that addresses the most critical gaps found.
-    
-    Papers:
+    You are an expert Scientific Researcher performing evidence-grounded research-gap analysis.
+
+    SYSTEM CONTEXT:
+    The paper content below comes from an extractive fact sheet system.
+    Every sentence shown was selected verbatim from the original paper using TextRank summarization.
+    The system covers ALL important sections: abstract, methodology, dataset, experiments,
+    results, discussion, limitations, future work, and conclusion.
+
+    IMPORTANT: If a section is not present in the fact sheet, do NOT conclude the paper lacks
+    that information \u2014 it may simply not have been extracted. State: "Not present in fact sheet."
+
+    RESEARCH TOPIC: '{research_data.query}'
+
+    YOUR TASK \u2014 perform THREE things:
+
+    1. INDIVIDUAL GAPS: For EACH of the {len(papers)} papers, identify ONE unique, paper-specific
+       research gap. Every gap MUST be different.
+       Grounding rule: cite the sentence_id (e.g. P001-LIM-02) from the fact sheet as evidence
+       where possible.
+
+    2. CROSS-PAPER GAPS: Identify 2\u20133 research problems that appear across MULTIPLE papers.
+       List which paper IDs share each cross-paper gap.
+
+    3. PROPOSED METHOD: Write ONE novel-method proposal that specifically addresses the most
+       critical gaps found, naming which gaps it targets.
+
+    PAPERS AND THEIR EXTRACTIVE FACT SHEETS:
     {all_papers_block}
-    
-    You MUST respond with a valid JSON block matching this EXACT schema structure:
+
+    You MUST respond with a valid JSON block matching this EXACT schema:
     {{
       "gaps": [
         {{
-          "paper_title": "Exact Title of Paper 1",
-          "gap_description": "Unique gap specific to Paper 1",
-          "gap_impact": "Impact of this gap on real-world use",
-          "gap_why_exists": "Why this specific gap exists technically",
-          "gap_opportunity": "Research opportunity to solve this",
-          "gap_future_scope": "Future scope of this topic",
-          "gap_severity": "Critical"
+          "paper_title": "Exact Title of Paper",
+          "paper_id": "P001",
+          "gap_description": "Unique gap specific to this paper (1 sentence)",
+          "gap_impact": "Why this blocks real-world adoption (1 sentence)",
+          "gap_why_exists": "Technical or data reason this gap exists (1 sentence)",
+          "gap_opportunity": "Actionable research opportunity (1 sentence)",
+          "gap_future_scope": "Long-term vision (1 sentence)",
+          "gap_severity": "Critical",
+          "evidence_sentence_id": "P001-LIM-02 or 'Not found in fact sheet'",
+          "evidence_text": "Verbatim sentence from fact sheet supporting this gap, or empty"
+        }}
+      ],
+      "cross_paper_gaps": [
+        {{
+          "gap_description": "Common unsolved problem across multiple papers",
+          "affected_paper_ids": ["P001", "P003", "P005"],
+          "shared_evidence": "What the papers collectively show about this gap"
         }}
       ],
       "proposed_method": {{
-        "title": "An academic name for the combined method that addresses the critical gaps",
+        "title": "Academic name for the proposed method",
+        "addresses_gaps": ["gap description 1", "gap description 2"],
         "approach": "Step 1: ...\\nStep 2: ...\\nStep 3: ...\\nStep 4: ...",
         "novelty_score": 87,
-        "rationale": "Why this is a unique, plagiarism-free contribution"
+        "rationale": "Why this is a unique, plagiarism-free contribution",
+        "expected_benefit": "What improvement is expected and why",
+        "potential_limitations": "Known risks or constraints of this approach"
       }}
     }}
-    
-    CRITICAL: You MUST produce exactly {len(papers)} gap entries in the 'gaps' array, one per paper.
-    Respond ONLY with the JSON code block. No extra explanations, no markdown wrapper backticks.
+
+    CRITICAL: Produce exactly {len(papers)} entries in 'gaps', one per paper.
+    Respond ONLY with the JSON. No markdown, no extra text.
     """
 
     severity_map = {"Critical": 3, "Moderate": 2, "Low": 1, "Minor": 1}
@@ -260,6 +292,17 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
                 p.gap_opportunity = match.get("gap_opportunity", "Implement scalable hybrid models.")
                 p.gap_future_scope = match.get("gap_future_scope", "Extend validation splits.")
                 p.gap_severity = match.get("gap_severity", "Moderate")
+
+                # Build evidence reference string for traceability
+                ev_id = match.get("evidence_sentence_id", "")
+                ev_text = match.get("evidence_text", "")
+                evidence_refs = []
+                if ev_id and ev_id != "Not found in fact sheet" and ev_text:
+                    evidence_refs = [
+                        f"{match.get('paper_id', p.title[:20])} | "
+                        f"{p.gap_description[:30]}... | "
+                        f"{ev_id} | {ev_text[:150]}"
+                    ]
             else:
                 # Default values if LLM skipped this paper
                 p.gap_description = f"Scalability limits in '{p.title[:45]}...' model architecture."
@@ -268,13 +311,23 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
                 p.gap_opportunity = "Integrate multi-modal context vectors."
                 p.gap_future_scope = "Ablation testing on public cross-domain benchmarks."
                 p.gap_severity = "Moderate"
+                evidence_refs = []
 
             gaps_list.append(ResearchGap(
                 description=p.gap_description,
                 severity=p.gap_severity,
                 why_it_matters=p.gap_impact,
-                evidence_papers=[p.title]
+                evidence_papers=[p.title],
+                evidence_references=evidence_refs if evidence_refs else None,
             ))
+
+        # Log cross-paper gaps if present
+        cross_paper_gaps = data.get("cross_paper_gaps", [])
+        if cross_paper_gaps:
+            print(f"[Agent2] Cross-paper gaps identified: {len(cross_paper_gaps)}")
+            for cpg in cross_paper_gaps:
+                paper_ids = ", ".join(cpg.get("affected_paper_ids", []))
+                print(f"  → [{paper_ids}]: {cpg.get('gap_description', '')[:80]}...")
 
         # Sort papers in research_data descending by gap severity (Critical -> Moderate -> Low)
         papers.sort(key=lambda x: severity_map.get(x.gap_severity, 1), reverse=True)
@@ -288,6 +341,7 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
         )
 
         return Agent2GapOutput(gaps=gaps_list, proposed_method=proposed_method)
+
 
     except Exception as e:
         print(f"Error calling Gemini in Agent 2: {e}")

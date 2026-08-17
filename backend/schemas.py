@@ -33,8 +33,15 @@ class PaperMetadata(BaseModel):
     gap_opportunity: str = Field(default="Not analyzed", description="Actionable next step/research opportunity")
     gap_future_scope: str = Field(default="Not analyzed", description="Long-term vision/future scope")
     gap_severity: str = Field(default="Low", description="Severity classification: Critical, Moderate, or Low")
-    # Full text content for deep extraction
-    full_text: str = Field(default="", description="Clean full text or segment fetched from PMC/ArXiv")
+    # Full text content for deep extraction (kept for section parsing and validation)
+    full_text: str = Field(default="", description="Clean full text fetched from PMC/ArXiv (no character truncation)")
+
+    # Compression pipeline outputs — populated after TextRank fact sheet generation
+    fact_sheet_text: str = Field(default="", description="Formatted fact sheet produced by the extractive compression pipeline")
+    compression_ratio: float = Field(default=0.0, description="Measured compression ratio: 1 - (compressed_tokens / original_tokens)")
+    section_coverage: float = Field(default=0.0, description="Fraction of detected sections represented in the fact sheet")
+    original_tokens: int = Field(default=0, description="Estimated token count of the original full paper text")
+    compressed_tokens: int = Field(default=0, description="Estimated token count of the compressed fact sheet")
 
 
 
@@ -49,6 +56,10 @@ class ResearchGap(BaseModel):
     severity: str = Field(description="Severity: Critical, Moderate, or Minor")
     why_it_matters: str = Field(description="Explanation of why this gap prevents commercial progress")
     evidence_papers: List[str] = Field(description="Paper titles that fail to address this gap")
+    evidence_references: Optional[List[str]] = Field(
+        default=None,
+        description="Traceability references in format: 'paper_id | section | sentence_id | verbatim sentence'"
+    )
 
 class NovelMethodProposal(BaseModel):
     title: str = Field(description="Academic name for the proposed combined method")

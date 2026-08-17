@@ -13,8 +13,10 @@ from google.genai import types
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from schemas import Agent1ResearchOutput, PaperMetadata
-from rag_prefetcher import get_embedding_model, prefetch_top_chunks
-from sentence_transformers import util
+# sentence_transformers used ONLY for deterministic relevance scoring (paper selection).
+# It is NOT used in the compression pipeline. ResearchIQ does not use RAG.
+from sentence_transformers import SentenceTransformer, util as st_util
+from compression import compress_paper, format_fact_sheet
 
 # Load environment variables — explicit path so it works when server runs from project root
 _env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
@@ -232,9 +234,13 @@ def _make_unique_fallback_summary(paper: dict, query: str) -> tuple:
     return notebook_summary, technical_execution
 
 
-# --- Full Text Fetchers for Deep Literature Analysis ---
+
 def _fetch_arxiv_full_text(arxiv_url: str) -> str:
-    """Fetches full-text HTML of an arXiv paper from ar5iv/arxiv.org."""
+    """Fetches full-text HTML of an arXiv paper from ar5iv/arxiv.org.
+    
+    Note: No character truncation is applied. The complete available text
+    is returned for section-aware compression by the TextRank pipeline.
+    """
     match = re.search(r'arxiv\.org/(?:abs|pdf)/([0-9.]+)', arxiv_url)
     if not match:
         return ""
@@ -245,10 +251,9 @@ def _fetch_arxiv_full_text(arxiv_url: str) -> str:
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=8) as resp:
-            soup = BeautifulSoup(resp.read().decode('utf-8'), 'html.parser')
-            text = re.sub(r'\s+', ' ', soup.get_text(separator=' ')).strip()
-            # Keep first 12,000 chars (methodology + intro + discussion)
-            return text[:12000]
+            full_html = resp.read().decode('utf-8')
+            # Return full HTML — the section parser will handle cleaning and structure
+            return full_html
     except Exception as e:
         print(f"  [ArXiv FT] ar5iv failed for {arxiv_id}: {e}")
         
@@ -257,9 +262,8 @@ def _fetch_arxiv_full_text(arxiv_url: str) -> str:
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=8) as resp:
-            soup = BeautifulSoup(resp.read().decode('utf-8'), 'html.parser')
-            text = re.sub(r'\s+', ' ', soup.get_text(separator=' ')).strip()
-            return text[:12000]
+            full_html = resp.read().decode('utf-8')
+            return full_html
     except Exception as e:
         print(f"  [ArXiv FT] arxiv.org HTML failed for {arxiv_id}: {e}")
         
@@ -267,7 +271,11 @@ def _fetch_arxiv_full_text(arxiv_url: str) -> str:
 
 
 def _fetch_pmc_full_text(url: str) -> str:
-    """Queries Europe PMC open API for full text XML and parses it."""
+    """Queries Europe PMC open API for full text XML and parses it.
+    
+    Note: No character truncation is applied. The complete available text
+    is returned for section-aware compression by the TextRank pipeline.
+    """
     match = re.search(r'(PMC\d+)', url, re.IGNORECASE)
     if not match:
         return ""
@@ -289,8 +297,9 @@ def _fetch_pmc_full_text(url: str) -> str:
             else:
                 text = ''.join(root.itertext())
                 
+            # Preserve full text — no truncation
             text = re.sub(r'\s+', ' ', text).strip()
-            return text[:12000]
+            return text
     except Exception as e:
         print(f"  [PMC FT] PMC XML retrieval failed for {pmcid}: {e}")
     return ""
@@ -324,12 +333,17 @@ def compute_deterministic_relevance(query: str, title: str, abstract: str, year:
     """
     text = f"{title} {abstract}"
     
-    # 1. Semantic Similarity (Cosine similarity via local embeddings model)
+    # sentence_transformers is used ONLY here for relevance scoring (paper selection).
+    # It is NOT used in the compression pipeline.
     try:
-        model = get_embedding_model()
-        q_vec = model.encode(query, convert_to_tensor=True)
-        t_vec = model.encode(text[:500], convert_to_tensor=True)
-        sem_score = float(util.cos_sim(q_vec, t_vec)[0][0])
+        from sentence_transformers import SentenceTransformer
+        _model_cache = getattr(compute_deterministic_relevance, '_model', None)
+        if _model_cache is None:
+            _model_cache = SentenceTransformer('all-MiniLM-L6-v2')
+            compute_deterministic_relevance._model = _model_cache
+        q_vec = _model_cache.encode(query, convert_to_tensor=True)
+        t_vec = _model_cache.encode(text[:500], convert_to_tensor=True)
+        sem_score = float(st_util.cos_sim(q_vec, t_vec)[0][0])
     except Exception as e:
         print(f"  [Scoring] Cosine similarity failed, fallback: {e}")
         sem_score = 0.5
@@ -414,22 +428,46 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
     # Take top 8 unique candidates (increased from 5)
     candidates = deduplicated[:8]
     
-    # Download full text for each candidate to enable deep gap extraction
-    for p in candidates:
+    # Download full text for each candidate — NO character truncation.
+    # The section-aware extractive compression pipeline processes the full paper.
+    for idx, p in enumerate(candidates):
         p["full_text"] = _fetch_full_text_for_paper(p)
-        # Prefetch top 2 chunks (approx 600 words) matching the search query to minimize prompt context
-        text_to_chunk = p["full_text"] if p.get("full_text") else p.get("abstract", "")
-        top_chunks = prefetch_top_chunks(query, [text_to_chunk], top_k=2)
-        p["rag_chunks"] = " ".join([c["text"] for c in top_chunks])
+        paper_id = f"P{idx+1:03d}"
+        p["paper_id"] = paper_id
+        
+        # Run extractive compression pipeline (TextRank, not RAG)
+        try:
+            fact_sheet = compress_paper(
+                paper_dict=p,
+                query=query,
+                paper_id=paper_id,
+            )
+            p["fact_sheet"] = fact_sheet
+            p["fact_sheet_text"] = format_fact_sheet(fact_sheet)
+            p["compression_ratio"] = fact_sheet.metrics.compression_ratio
+            p["section_coverage"] = fact_sheet.metrics.section_coverage
+            p["original_tokens"] = fact_sheet.metrics.original_token_count
+            p["compressed_tokens"] = fact_sheet.metrics.compressed_token_count
+        except Exception as e:
+            print(f"[Agent1] Compression failed for {paper_id} ('{p.get('title', '')[:40]}'): {e}")
+            p["fact_sheet_text"] = p.get("abstract", "")
+            p["compression_ratio"] = 0.0
+            p["section_coverage"] = 0.0
+            p["original_tokens"] = 0
+            p["compressed_tokens"] = 0
     
-    # Prepare lite_candidates to minimize prompt input tokens
+    # Build lite_candidates for the Gemini metadata-extraction prompt.
+    # Use fact_sheet_text (extractive summary) instead of rag_chunks.
     lite_candidates = []
     for c in candidates:
+        # Use fact_sheet_text as the paper's content representation.
+        # If compression failed, fall back to abstract.
+        content_for_gemini = c.get("fact_sheet_text") or c.get("abstract", "")
         lite_candidates.append({
             "title": c.get("title", ""),
             "authors": c.get("authors", []),
             "year": c.get("year", 2024),
-            "abstract": c.get("rag_chunks", "") or c.get("abstract", ""),
+            "abstract": content_for_gemini,
             "url": c.get("url", ""),
             "relevance_score": c.get("relevance_score", 0.8),
             "relevance_rank": c.get("relevance_rank", "Medium")
@@ -516,10 +554,14 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
         data = json.loads(response_text.strip())
         
         parsed_papers = []
-        candidates_map = {normalize_title(c["title"]): c.get("full_text", "") for c in candidates}
+        # Map title → candidate extras (full_text, fact_sheet_text, compression fields)
+        candidates_extra_map = {
+            normalize_title(c["title"]): c for c in candidates
+        }
         for p in data.get("papers", []):
             norm = normalize_title(p.get("title", ""))
-            ft = candidates_map.get(norm, "")
+            cand_extra = candidates_extra_map.get(norm, {})
+            ft = cand_extra.get("full_text", "")
             parsed_papers.append(PaperMetadata(
                 title=p.get("title", ""),
                 authors=p.get("authors", []),
@@ -539,7 +581,13 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
                 future_outcomes=p.get("future_outcomes", "Not extracted"),
                 innovation_score=int(p.get("innovation_score", 70)),
                 research_significance=p.get("research_significance", "Not analyzed"),
-                full_text=ft
+                full_text=ft,
+                # Attach compression pipeline outputs
+                fact_sheet_text=cand_extra.get("fact_sheet_text", ""),
+                compression_ratio=cand_extra.get("compression_ratio", 0.0),
+                section_coverage=cand_extra.get("section_coverage", 0.0),
+                original_tokens=cand_extra.get("original_tokens", 0),
+                compressed_tokens=cand_extra.get("compressed_tokens", 0),
             ))
         
         # Sort papers: first group by relevance_rank (High=3, Medium=2, Low=1),

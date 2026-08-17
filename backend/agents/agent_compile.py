@@ -574,7 +574,69 @@ def compile_final_report(state: ProjectReportState, output_dir: str = ".") -> st
     story.append(Paragraph("6. Unpatented Innovation Opportunities", S['h2']))
     for opp in state.patents.white_space_opportunities:
         story.append(Paragraph(f"💡 {opp}", S['bullet']))
-        
+
+    # ── Compression Statistics Section ────────────────────────────────────
+    papers_with_compression = [
+        p for p in state.research.papers
+        if getattr(p, 'original_tokens', 0) > 0
+    ]
+    if papers_with_compression:
+        story.append(PageBreak())
+        story.append(Paragraph("7. Extractive Compression Statistics", S['h1']))
+        story.append(Paragraph(
+            "ResearchIQ uses a section-aware TextRank extractive compression pipeline. "
+            "Every sentence sent to Gemini is verbatim from the original paper. "
+            "No RAG, no embeddings, no LLM-generated summaries are used in the compression stage.",
+            S['body']
+        ))
+        story.append(Spacer(1, 8))
+
+        comp_data = [[
+            Paragraph("<b>Paper</b>", S['body']),
+            Paragraph("<b>Orig. Tokens</b>", S['body']),
+            Paragraph("<b>Comp. Tokens</b>", S['body']),
+            Paragraph("<b>Reduction</b>", S['body']),
+            Paragraph("<b>Section Coverage</b>", S['body']),
+        ]]
+        for p in papers_with_compression:
+            reduction = getattr(p, 'compression_ratio', 0.0) * 100
+            coverage = getattr(p, 'section_coverage', 0.0) * 100
+            orig_tok = getattr(p, 'original_tokens', 0)
+            comp_tok = getattr(p, 'compressed_tokens', 0)
+
+            # Color code reduction
+            if reduction >= 60:
+                red_color = '#10B981'
+            elif reduction >= 30:
+                red_color = '#F59E0B'
+            else:
+                red_color = '#64748B'
+
+            comp_data.append([
+                Paragraph(f"{p.title[:40]}{'...' if len(p.title) > 40 else ''}", S['body']),
+                Paragraph(f"{orig_tok:,}", S['body']),
+                Paragraph(f"{comp_tok:,}", S['body']),
+                Paragraph(f"<font color='{red_color}'><b>{reduction:.1f}%</b></font>", S['body']),
+                Paragraph(f"{coverage:.0f}%", S['body']),
+            ])
+
+        comp_table = Table(comp_data, colWidths=[220, 70, 70, 70, 92])
+        comp_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F8FAFC')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8FAFC')]),
+        ]))
+        story.append(comp_table)
+        story.append(Spacer(1, 8))
+        story.append(Paragraph(
+            "Note: Faithfulness = 100% means every selected sentence was verified verbatim "
+            "in the original paper source. Compression ratio = 1 − (compressed_tokens / original_tokens).",
+            S['disclaimer']
+        ))
+
     # Build document
     doc.build(story)
     

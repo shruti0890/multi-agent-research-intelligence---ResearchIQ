@@ -6,3 +6,11 @@ google-genai
 reportlab
 python-dotenv
 rouge-score
+matplotlib
+# sentence-transformers: kept ONLY for deterministic relevance scoring (paper selection).
+# NOT used in the compression pipeline. No RAG anywhere in ResearchIQ.
+sentence-transformers
+beautifulsoup4
+# TextRank compression pipeline dependencies (CPU-only, no model download)
+networkx
+nltk
