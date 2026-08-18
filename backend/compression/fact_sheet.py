@@ -303,10 +303,15 @@ def compress_paper(
         )
 
     # If no full text, use abstract as the only available content
+    # Track coverage_type: caller may pass 'partial_paper' or 'full_paper' in paper_dict.
+    # If we fall back to abstract here, override to 'abstract_only'.
+    input_coverage_type = paper_dict.get("coverage_type", "unavailable")
+
     if not raw_text.strip():
         if abstract_text.strip():
             print(f"[COMPRESSION] {paper_id}: No full text. Using abstract only.")
             raw_text = abstract_text
+            resolved_coverage = "abstract_only"
         else:
             print(f"[COMPRESSION] {paper_id}: No text available. Empty fact sheet.")
             return PaperFactSheet(
@@ -315,8 +320,15 @@ def compress_paper(
                 authors=authors if isinstance(authors, list) else [str(authors)],
                 year=year,
                 source_url=url,
+                coverage_type="unavailable",
                 sections={},
             )
+    else:
+        # Full text was provided — respect the caller's coverage_type
+        # (full_paper or partial_paper, set by the full-text resolver)
+        resolved_coverage = input_coverage_type if input_coverage_type in (
+            "full_paper", "partial_paper"
+        ) else "full_paper"
 
     # ── Section parsing ──────────────────────────────────────────────────────
     is_html = bool(re.search(r'<[a-zA-Z][^>]{0,50}>', raw_text))
@@ -400,6 +412,7 @@ def compress_paper(
         authors=authors if isinstance(authors, list) else [str(authors)],
         year=year,
         source_url=url,
+        coverage_type=resolved_coverage,
         sections=section_sheets,
         metrics=metrics,
     )
@@ -460,13 +473,26 @@ def format_fact_sheet(fact_sheet: PaperFactSheet) -> str:
     m = fact_sheet.metrics
     lines.append("")
     lines.append("COMPRESSION METRICS")
-    lines.append(f"  Original tokens   : {m.original_token_count:,}")
-    lines.append(f"  Compressed tokens : {m.compressed_token_count:,}")
-    lines.append(f"  Compression ratio : {m.compression_ratio * 100:.1f}%")
-    lines.append(f"  Section coverage  : {m.covered_sections}/{m.detected_sections} sections")
-    lines.append(f"  Selected sentences: {m.selected_sentence_count}")
-    lines.append(f"  Technical sentences: {m.technical_sentence_count}")
-    lines.append(f"  Faithfulness      : {m.faithfulness_ratio * 100:.1f}%")
+    lines.append(f"  Original tokens (est.)   : {m.original_token_count:,}")
+    lines.append(f"  Compressed tokens (est.) : {m.compressed_token_count:,}")
+    lines.append(f"  Compression ratio        : {m.compression_ratio * 100:.1f}%")
+    lines.append(f"  Section coverage         : {m.covered_sections}/{m.detected_sections} sections")
+    lines.append(f"  Selected sentences       : {m.selected_sentence_count}")
+    lines.append(f"  Technical sentences      : {m.technical_sentence_count}")
+    lines.append(f"  Faithfulness             : {m.faithfulness_ratio * 100:.1f}%")
+    lines.append(f"  Token count method       : {m.token_count_method}")
+    lines.append("")
+    # Coverage type badge
+    coverage = getattr(fact_sheet, 'coverage_type', 'unavailable')
+    if coverage == "full_paper":
+        lines.append("COVERAGE: Full paper (complete available text processed)")
+    elif coverage == "partial_paper":
+        lines.append("COVERAGE: Partial paper (some content could not be extracted)")
+    elif coverage == "abstract_only":
+        lines.append("WARNING: ABSTRACT ONLY — full text was unavailable.")
+        lines.append("         Gap analysis based on abstract evidence only.")
+    else:
+        lines.append("COVERAGE: Unavailable")
     lines.append("")
     lines.append("NOTE: Every sentence below is extracted verbatim from the original paper.")
     lines.append(sep)

@@ -14,3 +14,5 @@ beautifulsoup4
 # TextRank compression pipeline dependencies (CPU-only, no model download)
 networkx
 nltk
+# PDF text extraction for legitimate open-access PDFs (used in full-text resolver only)
+pdfminer.six

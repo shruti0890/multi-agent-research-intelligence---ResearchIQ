@@ -28,9 +28,12 @@ def count_words(text: str) -> int:
 
 def estimate_tokens(text: str) -> int:
     """
-    Estimate token count using a conservative word-split heuristic.
+    ESTIMATE token count using a conservative word-split heuristic.
     Each word ≈ 1 token; punctuation tokens are counted separately.
-    This avoids any tokenizer model dependency.
+
+    IMPORTANT: This is an ESTIMATE using the word-split heuristic (words × 1.15).
+    It is NOT an exact Gemini token count. Results are labeled '(est.)' in all
+    reports and fact sheets.
     """
     if not text or not text.strip():
         return 0
@@ -87,6 +90,7 @@ def measure_compression(
         technical_sentence_count=technical_sentences,
         total_validated_sentences=validated_sentences,
         faithfulness_ratio=faithfulness,
+        token_count_method="estimated_word_split",
     )
 
 

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 
 # --- Agent 1: Research Paper Output Model (NotebookLM Style) ---
 class PaperMetadata(BaseModel):
@@ -36,12 +36,24 @@ class PaperMetadata(BaseModel):
     # Full text content for deep extraction (kept for section parsing and validation)
     full_text: str = Field(default="", description="Clean full text fetched from PMC/ArXiv (no character truncation)")
 
+    paper_id: str = Field(default="", description="Unique paper identifier assigned by Agent 1 (e.g. P001)")
     # Compression pipeline outputs — populated after TextRank fact sheet generation
+    fact_sheet: Any = Field(default=None, description="PaperFactSheet instance produced by extractive compression")
     fact_sheet_text: str = Field(default="", description="Formatted fact sheet produced by the extractive compression pipeline")
     compression_ratio: float = Field(default=0.0, description="Measured compression ratio: 1 - (compressed_tokens / original_tokens)")
     section_coverage: float = Field(default=0.0, description="Fraction of detected sections represented in the fact sheet")
     original_tokens: int = Field(default=0, description="Estimated token count of the original full paper text")
     compressed_tokens: int = Field(default=0, description="Estimated token count of the compressed fact sheet")
+
+    # Full-text acquisition status — populated by the full-text resolver
+    full_text_available: bool = Field(default=False, description="True if real full text (not just abstract) was successfully acquired")
+    full_text_source: str = Field(default="none", description="Source used for full text: 'arxiv', 'pmc', 'semantic_scholar', 'openalex', 'doaj', 'unpaywall', 'none'")
+    full_text_url: str = Field(default="", description="URL from which full text was fetched")
+    compression_source: str = Field(default="none", description="What was fed to the compression pipeline: 'full_text', 'abstract', 'none'")
+    coverage_type: str = Field(default="unavailable", description="Coverage level: 'full_paper' | 'partial_paper' | 'abstract_only' | 'unavailable'")
+    full_text_word_count: int = Field(default=0, description="Word count of the acquired full text before compression")
+    full_text_character_count: int = Field(default=0, description="Character count of the acquired full text before compression")
+
 
 
 

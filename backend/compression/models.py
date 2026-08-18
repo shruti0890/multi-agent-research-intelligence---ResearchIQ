@@ -143,6 +143,10 @@ class CompressionMetrics(BaseModel):
         default=1.0,
         description="Fraction of selected sentences verified verbatim in original text"
     )
+    token_count_method: str = Field(
+        default="estimated_word_split",
+        description="Token counting method: 'estimated_word_split' = heuristic (words × 1.15). NOT an exact Gemini token count."
+    )
 
 
 class PaperFactSheet(BaseModel):
@@ -156,6 +160,12 @@ class PaperFactSheet(BaseModel):
     year: int = 2024
     doi: str = ""
     source_url: str = ""
+
+    # Coverage type — set by compress_paper() based on available input
+    coverage_type: str = Field(
+        default="unavailable",
+        description="full_paper | partial_paper | abstract_only | unavailable"
+    )
 
     # Section data
     sections: Dict[str, SectionFactSheet] = Field(default_factory=dict)
