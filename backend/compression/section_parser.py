@@ -36,6 +36,12 @@ _NORMALIZATION_RULES: List[Tuple[str, str]] = [
     ("motivation", "introduction"),
     ("overview", "introduction"),
 
+    # Background variants
+    ("theoretical background", "background"),
+    ("preliminaries", "background"),
+    ("preliminary", "background"),
+    ("background", "background"),
+
     # Related Work variants
     ("related work", "related_work"),
     ("prior work", "related_work"),
@@ -67,6 +73,12 @@ _NORMALIZATION_RULES: List[Tuple[str, str]] = [
     ("system design", "methodology"),
     ("technical approach", "methodology"),
     ("algorithm", "methodology"),
+    ("acoustic", "methodology"),
+    ("feature extraction", "methodology"),
+    ("mathematical", "methodology"),
+    ("formulation", "methodology"),
+    ("proof", "methodology"),
+    ("implementation", "methodology"),
 
     # Dataset variants
     ("dataset", "dataset"),
@@ -86,6 +98,7 @@ _NORMALIZATION_RULES: List[Tuple[str, str]] = [
     ("finding", "results"),
     ("ablation study", "results"),
     ("ablation", "results"),
+    ("case study", "results"),
 
     # Experiments variants — placed AFTER the more-specific result patterns
     ("experimental setup", "experiments"),
@@ -97,6 +110,7 @@ _NORMALIZATION_RULES: List[Tuple[str, str]] = [
     ("evaluation", "experiments"),
     ("implementation detail", "experiments"),
     ("setup", "experiments"),
+    ("training", "experiments"),
 
     # Generic result patterns — after experiment to avoid premature matches
     ("performance", "results"),
@@ -120,6 +134,7 @@ _NORMALIZATION_RULES: List[Tuple[str, str]] = [
     ("future direction", "future_work"),
     ("open problem", "future_work"),
     ("future research", "future_work"),
+    ("future", "future_work"),
 
     # Conclusion variants
     ("conclusion and future", "conclusion"),
@@ -127,6 +142,35 @@ _NORMALIZATION_RULES: List[Tuple[str, str]] = [
     ("conclusion", "conclusion"),
     ("summary and conclusion", "conclusion"),
     ("closing remark", "conclusion"),
+
+    # Appendix / Technical extensions (preserved as research content)
+    ("appendix", "methodology"),
+    ("supplementary analysis", "methodology"),
+
+    # ── Non-research sections ────────────────────────────────────────────────
+    # These are classified so the compression pipeline can explicitly skip them.
+    # Placed LAST so they never shadow research-content patterns.
+    ("references", "references"),
+    ("bibliography", "bibliography"),
+    ("works cited", "references"),
+    ("literature cited", "references"),
+    ("acknowledgment", "acknowledgments"),
+    ("acknowledgement", "acknowledgments"),
+    ("funding", "funding"),
+    ("financial support", "funding"),
+    ("grant support", "funding"),
+    ("conflict of interest", "conflict_of_interest"),
+    ("competing interest", "conflict_of_interest"),
+    ("declaration of competing interest", "conflict_of_interest"),
+    ("financial disclosure", "conflict_of_interest"),
+    ("author contribution", "author_contributions"),
+    ("authors' contribution", "author_contributions"),
+    ("authors contributions", "author_contributions"),
+    ("data availability", "acknowledgments"),
+    ("ethics statement", "acknowledgments"),
+    ("declaration", "acknowledgments"),
+    ("supplementary material", "supplementary_material"),
+    ("supporting information", "supplementary_material"),
 ]
 
 # Section keys to check after "limitations" match on combined headings so that
@@ -137,6 +181,43 @@ _COMBINED_SPLITS: Dict[str, Tuple[str, str]] = {
     "discussion and conclusion":   ("discussion", "conclusion"),
     "experiments and results":     ("experiments", "results"),
 }
+
+# ---------------------------------------------------------------------------
+# Section classification sets — exported for use by the compression pipeline
+# and gap analysis agent.
+# ---------------------------------------------------------------------------
+
+#: Sections that contain non-research "boilerplate" content.
+#: The compression pipeline skips these to avoid wasting TextRank budget on
+#: reference lists, author bios, funding statements, etc.
+NON_RESEARCH_SECTIONS: frozenset = frozenset({
+    "references",
+    "bibliography",
+    "acknowledgments",
+    "funding",
+    "conflict_of_interest",
+    "author_contributions",
+    "supplementary_material",
+})
+
+#: All section keys that contain genuine research content and should be
+#: compressed and included in Gemini evidence.
+RESEARCH_CONTENT_SECTIONS: frozenset = frozenset({
+    "abstract",
+    "introduction",
+    "background",
+    "related_work",
+    "problem_definition",
+    "methodology",
+    "dataset",
+    "experiments",
+    "results",
+    "discussion",
+    "limitations",
+    "future_work",
+    "conclusion",
+    "unknown",  # kept — may contain genuine preamble/content
+})
 
 # Heading detection: matches lines/spans that look like section headings.
 # A heading is typically:
@@ -267,6 +348,72 @@ def _split_into_raw_sections(text: str) -> List[Tuple[str, str]]:
     return sections
 
 
+def inspect_and_classify_unknown_section(text: str, raw_heading: str = "") -> str:
+    """
+    Inspects content in 'unknown' sections to determine if it should be reclassified
+    into a non-research section (references, funding, acknowledgments, conflict of interest, metadata)
+    or preserved as genuine research content.
+
+    If it contains actual research content, returns 'unknown' (preserving it).
+    """
+    if not text or not text.strip():
+        return "unknown"
+
+    heading_lower = raw_heading.lower().strip()
+    if any(h in heading_lower for h in ["reference", "bibliography", "works cited", "literature cited"]):
+        return "references"
+
+    lines = [l.strip() for l in text.strip().split('\n') if l.strip()]
+    if not lines:
+        return "unknown"
+
+    lower_text = text.lower()
+
+    # 1. Check for references / bibliography patterns:
+    # Requires high proportion of formatted bibliographic entries (>= 60% of lines) and at least 4 lines,
+    # or explicit citation list without research prose verbs.
+    ref_indicators = 0
+    for line in lines:
+        if re.match(r'^\[\d+\]', line) or re.match(r'^\d+\.\s+[A-Z]', line):
+            ref_indicators += 1
+        elif any(marker in line.lower() for marker in ['doi:', 'doi.org', 'proceedings of', 'in proc.', 'vol.', 'pp.', 'isbn']):
+            ref_indicators += 1
+
+    # Check if text is full research prose (contains active verbs / research claims)
+    has_research_prose = any(phrase in lower_text for phrase in [
+        "we propose", "we evaluate", "in this section", "our method", "the model",
+        "results show", "table", "figure", "accuracy", "performance", "we find", "demonstrates"
+    ])
+
+    if ref_indicators >= max(4, int(len(lines) * 0.60)) and not has_research_prose:
+        return "references"
+
+    # 2. Check for funding / grant statements:
+    if any(phrase in lower_text for phrase in [
+        "this work was supported by", "funded by", "grant number", "grant no.",
+        "financial support", "under award number", "supported by grant"
+    ]) and len(lines) <= 8 and not has_research_prose:
+        return "funding"
+
+    # 3. Check for conflict of interest / competing interests:
+    if ("conflict of interest" in lower_text or "competing interest" in lower_text or "declare no conflict" in lower_text) and len(lines) <= 6:
+        return "conflict_of_interest"
+
+    # 4. Check for author contributions:
+    if ("author contribution" in lower_text or "authors' contribution" in lower_text or "conceived and designed the experiments" in lower_text) and len(lines) <= 8:
+        return "author_contributions"
+
+    # 5. Check for acknowledgments / ethics / data availability / journal metadata:
+    if any(phrase in lower_text for phrase in [
+        "we thank", "the authors thank", "data availability statement", "ethics approval",
+        "received: ", "accepted: ", "published online", "copyright:", "all rights reserved"
+    ]) and len(lines) <= 8 and not has_research_prose:
+        return "acknowledgments"
+
+    # 6. Genuine research content: preserve it!
+    return "unknown"
+
+
 def parse_paper_sections(
     raw_text: str,
     is_html: bool = False,
@@ -320,9 +467,9 @@ def parse_paper_sections(
             continue
 
         norm_key = _normalize_section_name(raw_heading)
-        if norm_key is None:
-            # Heading not recognized — group under 'unknown' only if it has content
-            norm_key = "unknown"
+        if norm_key is None or norm_key == "unknown":
+            # Inspect unknown section to classify or preserve
+            norm_key = inspect_and_classify_unknown_section(section_text, raw_heading)
 
         if norm_key in result:
             # Duplicate section: concatenate (handles papers where abstract is split)

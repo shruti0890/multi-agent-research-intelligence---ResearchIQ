@@ -693,6 +693,115 @@ class TestCompressionConfig:
 
 
 # ---------------------------------------------------------------------------
+# NEW: Research-section-aware coverage metric tests
+# ---------------------------------------------------------------------------
+
+class TestResearchSectionCoverage:
+    """Test that research_section_coverage correctly excludes non-research sections."""
+
+    def test_measure_compression_research_coverage_basic(self):
+        """research_section_coverage should use only research_sections in denominator."""
+        from compression.token_utils import measure_compression
+        m = measure_compression(
+            original_text="The method achieves state-of-the-art results. " * 50,
+            compressed_text="The method achieves state-of-the-art results.",
+            detected_sections=5,   # 3 research + 2 non-research (references/acks)
+            covered_sections=3,
+            research_sections=3,
+            research_sections_covered=3,
+            non_research_sections_skipped=2,
+        )
+        assert m.research_section_coverage == 1.0, "All research sections covered"
+        assert m.non_research_sections_skipped == 2
+        assert m.research_sections == 3
+        assert m.research_sections_covered == 3
+
+    def test_measure_compression_research_coverage_partial(self):
+        from compression.token_utils import measure_compression
+        m = measure_compression(
+            original_text="A. B. C. D. E. " * 30,
+            compressed_text="A.",
+            detected_sections=4,
+            covered_sections=2,
+            research_sections=3,
+            research_sections_covered=2,
+            non_research_sections_skipped=1,
+        )
+        assert round(m.research_section_coverage, 4) == round(2/3, 4)
+
+    def test_measure_compression_no_research_sections_fallback(self):
+        """When research_sections=0 (not provided), fallback to legacy section_coverage."""
+        from compression.token_utils import measure_compression
+        m = measure_compression(
+            original_text="X. Y. Z. " * 20,
+            compressed_text="X.",
+            detected_sections=4,
+            covered_sections=2,
+            # research_sections not provided (default=0)
+        )
+        # Should fall back to legacy coverage
+        assert m.research_section_coverage == m.section_coverage
+
+    def test_compression_metrics_has_new_fields(self):
+        from compression.models import CompressionMetrics
+        m = CompressionMetrics()
+        assert hasattr(m, "research_sections")
+        assert hasattr(m, "research_sections_covered")
+        assert hasattr(m, "research_section_coverage")
+        assert hasattr(m, "non_research_sections_skipped")
+        assert hasattr(m, "compression_status")
+        assert m.compression_status == "evaluated"
+
+    def test_compression_status_default(self):
+        from compression.models import CompressionMetrics
+        m = CompressionMetrics()
+        assert m.compression_status == "evaluated"
+
+    def test_compression_status_abstract_only(self):
+        from compression.models import CompressionMetrics
+        m = CompressionMetrics()
+        m.compression_status = "abstract_only_not_evaluated"
+        assert m.compression_status == "abstract_only_not_evaluated"
+
+
+# ---------------------------------------------------------------------------
+# NEW: Whitespace-normalized faithfulness validation tests
+# ---------------------------------------------------------------------------
+
+class TestWhitespaceNormalizedFaithfulness:
+    """validate_extracted_sentence should handle harmless whitespace differences."""
+
+    def test_exact_match_passes(self):
+        from compression.token_utils import validate_extracted_sentence
+        original = "The model achieves 94% accuracy on the benchmark dataset."
+        assert validate_extracted_sentence(original, "Text: " + original + " More text.")
+
+    def test_double_space_in_original_passes(self):
+        """PDF text extraction often produces double spaces. Should still match."""
+        from compression.token_utils import validate_extracted_sentence
+        sentence = "The model achieves 94% accuracy."
+        original_with_double_space = "The model  achieves  94%  accuracy.  Further analysis follows."
+        assert validate_extracted_sentence(sentence, original_with_double_space)
+
+    def test_completely_different_sentence_fails(self):
+        """A paraphrased sentence should fail (NOT just a whitespace difference)."""
+        from compression.token_utils import validate_extracted_sentence
+        sentence = "The model reaches ninety-four percent accuracy."
+        original = "The model achieves 94% accuracy on the benchmark dataset."
+        assert not validate_extracted_sentence(sentence, original)
+
+    def test_empty_sentence_fails(self):
+        from compression.token_utils import validate_extracted_sentence
+        assert not validate_extracted_sentence("", "Some text.")
+        assert not validate_extracted_sentence("   ", "Some text.")
+
+    def test_leading_trailing_whitespace_stripped(self):
+        from compression.token_utils import validate_extracted_sentence
+        original = "Results show improvement."
+        assert validate_extracted_sentence("  Results show improvement.  ", "Some text. Results show improvement. More.")
+
+
+# ---------------------------------------------------------------------------
 # Run directly
 # ---------------------------------------------------------------------------
 

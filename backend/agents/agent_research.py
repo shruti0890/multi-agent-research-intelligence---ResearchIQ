@@ -1,5 +1,8 @@
 import os
 import sys
+import time
+import socket
+socket.setdefaulttimeout(15)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import urllib.request
 import urllib.parse
@@ -14,7 +17,7 @@ from google.genai import types
 # pyrefly: ignore [missing-import]
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from schemas import Agent1ResearchOutput, PaperMetadata
+from schemas import Agent1ResearchOutput, PaperMetadata, CandidateDiagnostic, GeminiQuotaExhaustedError
 # sentence_transformers used ONLY here for deterministic relevance scoring (paper selection).
 # It is NOT used in the compression pipeline. ResearchIQ does not use RAG.
 from sentence_transformers import SentenceTransformer, util as st_util
@@ -44,6 +47,177 @@ GEMINI_MODEL = "gemini-2.5-flash"
 # Set to 0 to disable the check.
 # ---------------------------------------------------------------------------
 FULL_TEXT_MIN_WORDS = 300
+
+
+def validate_full_paper_content(text: str, min_words: int = 50) -> tuple[bool, str, dict]:
+    """
+    Validates that retrieved full-text content represents a legitimate research paper
+    with substantial research body sections, rather than just abstract, funding,
+    metadata, or publisher wrapper boilerplate.
+
+    Structural criteria:
+      1. Section structure: presence of genuine research content sections
+         (e.g., methodology, results, experiments, discussion, introduction, conclusion).
+      2. Content volume: research body token count must be substantial,
+         excluding abstract and non-research boilerplate.
+      3. False full-text rejection: rejects pages that only contain abstract + funding/metadata.
+      4. Unknown section validation: if only 'unknown' is detected, verifies presence
+         of substantive prose sentences and research vocabulary, rejecting pure publisher wrappers.
+
+    Returns (is_valid: bool, reason: str, stats: dict).
+    """
+    if not text or not isinstance(text, str):
+        return False, "Empty or non-string content", {}
+
+    s = text.strip()
+    words = s.split()
+
+    # Import parser and constants
+    from compression.section_parser import parse_paper_sections, NON_RESEARCH_SECTIONS
+    from compression.token_utils import estimate_tokens
+
+    is_html = bool(re.search(r'<[a-zA-Z][^>]{0,50}>', text))
+    sections = parse_paper_sections(text, is_html=is_html)
+    if not sections:
+        sections = {"unknown": text}
+
+    total_tokens = estimate_tokens(text)
+    detected_section_names = list(sections.keys())
+    abstract_text = sections.get("abstract", "")
+    abstract_tokens = estimate_tokens(abstract_text)
+
+    non_research_tokens = sum(
+        estimate_tokens(sections[s]) for s in detected_section_names if s in NON_RESEARCH_SECTIONS
+    )
+
+    research_sections = [
+        s for s in detected_section_names
+        if s not in NON_RESEARCH_SECTIONS and s != "abstract"
+    ]
+    research_tokens = sum(estimate_tokens(sections[s]) for s in research_sections)
+
+    stats = {
+        "total_words": len(words),
+        "total_tokens": total_tokens,
+        "detected_sections": detected_section_names,
+        "research_sections": research_sections,
+        "research_tokens": research_tokens,
+        "abstract_tokens": abstract_tokens,
+        "non_research_tokens": non_research_tokens,
+    }
+
+    # Case 1: Only abstract and/or non-research sections detected (e.g. ['abstract'], ['abstract', 'funding'])
+    if not research_sections:
+        return False, "only abstract/non-research content detected", stats
+
+    if len(words) < min_words:
+        return False, f"Total word count ({len(words)}) below minimum threshold ({min_words})", stats
+
+    # Case 2: Only 'unknown' section detected — inspect prose and publisher wrapper patterns
+    if research_sections == ["unknown"]:
+        unknown_text = sections["unknown"]
+
+        # Check for repetitive publisher wrapper tokens (e.g. nav_filler)
+        wrapper_keywords = ["publisher", "journal", "volume", "citation", "metrics", "download", "cookie", "policy", "terms", "privacy", "copyright"]
+        words_lower = [w.lower().strip(".,;:\"'()[]") for w in words]
+        wrapper_hits = sum(1 for w in words_lower if w in wrapper_keywords)
+        wrapper_ratio = wrapper_hits / max(1, len(words))
+
+        # Check for complete sentences ending in period/exclamation/question mark
+        sentence_endings = re.findall(r'[a-zA-Z0-9][.!?](?:\s+|$)', unknown_text)
+        num_sentences = len(sentence_endings)
+
+        # Research vocabulary indicators
+        research_indicators = [
+            "method", "result", "experiment", "model", "analysis", "dataset",
+            "accuracy", "evaluate", "performance", "approach", "proposed", "study",
+            "table", "figure", "we find", "we demonstrate", "we propose", "in this paper",
+            "investigate", "speech", "detection", "neural", "network", "algorithm"
+        ]
+        text_lower = unknown_text.lower()
+        indicator_hits = sum(1 for ind in research_indicators if ind in text_lower)
+
+        if wrapper_ratio > 0.40 and len(words) > 500:
+            return False, "publisher wrapper/metadata without substantive research body", stats
+
+        if len(words) > 1000 and num_sentences < 10:
+            return False, "publisher wrapper/metadata without substantive research body", stats
+
+        if indicator_hits < 2 and research_tokens < 600:
+            return False, "insufficient research discourse indicators in unknown section", stats
+
+    # Case 3: Specific research sections found, but total research body is tiny (< 300 tokens)
+    # and no core sections like methodology, results, experiments, discussion, introduction, unknown
+    core_research_sections = {"methodology", "results", "experiments", "discussion", "introduction", "unknown"}
+    if research_tokens < 300 and not (set(research_sections) & core_research_sections):
+        return False, "only abstract/non-research content detected", stats
+
+    # Case 4: Extreme non-research imbalance (e.g. 15k words of publisher wrapper/references, but < 400 research tokens)
+    if total_tokens > 3000 and research_tokens < 400:
+        return False, "publisher wrapper/metadata without substantive research body", stats
+
+    return True, "valid_research_paper", stats
+
+
+def is_full_text_usable(text: str) -> bool:
+    """
+    Validates whether retrieved text qualifies as usable research paper full text.
+
+    Rejects:
+      - Empty or whitespace-only content
+      - Placeholder, paywall, blocking or error pages (e.g. 404, Access Denied, Captcha, Cloudflare, Sign in)
+      - Metadata-only / citation-only / abstract landing pages without substantial article body
+      - Extremely short non-paper content (< FULL_TEXT_MIN_WORDS)
+
+    Accepts:
+      - Legitimate research papers with substantial body paragraphs and structure
+    """
+    if not text or not isinstance(text, str):
+        return False
+    s = text.strip()
+    if not s:
+        return False
+
+    words = s.split()
+    if len(words) < FULL_TEXT_MIN_WORDS:
+        return False
+
+    s_lower = s[:3000].lower()
+
+    # Known error / paywall / bot blocking patterns
+    error_patterns = [
+        "404 not found",
+        "access denied",
+        "permission denied",
+        "cookie policy",
+        "please enable javascript",
+        "please enable cookies",
+        "sign in to access",
+        "purchase this article",
+        "subscribe to continue",
+        "cloudflare",
+        "attention required",
+        "verify you are human",
+        "captcha",
+        "just a moment...",
+        "service unavailable",
+        "bad gateway",
+        "gateway timeout",
+        "no abstract available",
+        "doi landing page",
+        "citation only",
+    ]
+    for pattern in error_patterns:
+        if pattern in s_lower:
+            return False
+
+    # Check for metadata-only landing page indicators (e.g. citations & metrics without body text)
+    metadata_headers = ["download citation", "rights and permissions", "about this article", "cite this article", "share this article"]
+    metadata_hits = sum(1 for h in metadata_headers if h in s_lower)
+    if metadata_hits >= 2 and len(words) < 500:
+        return False
+
+    return True
 
 
 def normalize_title(title: str) -> str:
@@ -84,33 +258,63 @@ def fetch_arxiv(query: str, limit: int) -> list:
 
 # --- API 2: Semantic Scholar ---
 def fetch_semantic_scholar(query: str, limit: int) -> list:
+    """Fetch papers from Semantic Scholar with retry/backoff on 429 and transient errors."""
     papers = []
     encoded_query = urllib.parse.quote(query)
     url = (f"https://api.semanticscholar.org/graph/v1/paper/search"
            f"?query={encoded_query}&limit={limit}"
            f"&fields=title,authors,year,abstract,url,citationCount,openAccessPdf")
-    try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=6) as response:
-            data = json.loads(response.read().decode())
-            for item in data.get("data", []):
-                authors = [auth.get("name") for auth in item.get("authors", []) if auth.get("name")]
-                # Extract legitimate open-access PDF URL if present
-                oa_pdf_info = item.get("openAccessPdf") or {}
-                oa_pdf_url = oa_pdf_info.get("url", "") if isinstance(oa_pdf_info, dict) else ""
-                papers.append({
-                    "title": item.get("title", "Unknown"),
-                    "authors": authors,
-                    "year": item.get("year", 2024) or 2024,
-                    "abstract": item.get("abstract") or "No abstract available.",
-                    "url": item.get("url") or "",
-                    "source": "Semantic Scholar",
-                    "citations": item.get("citationCount", 0) or 0,
-                    "open_access_pdf_url": oa_pdf_url,
-                    "oa_url": "",
-                })
-    except Exception as e:
-        print(f"Semantic Scholar API warning: {e}")
+
+    # Build headers — include optional API key for higher rate limits
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    ss_api_key = os.getenv("SEMANTIC_SCHOLAR_API_KEY", "").strip()
+    if ss_api_key:
+        headers["x-api-key"] = ss_api_key
+
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=10) as response:
+                data = json.loads(response.read().decode())
+                for item in data.get("data", []):
+                    authors = [auth.get("name") for auth in item.get("authors", []) if auth.get("name")]
+                    # Extract legitimate open-access PDF URL if present
+                    oa_pdf_info = item.get("openAccessPdf") or {}
+                    oa_pdf_url = oa_pdf_info.get("url", "") if isinstance(oa_pdf_info, dict) else ""
+                    papers.append({
+                        "title": item.get("title", "Unknown"),
+                        "authors": authors,
+                        "year": item.get("year", 2024) or 2024,
+                        "abstract": item.get("abstract") or "No abstract available.",
+                        "url": item.get("url") or "",
+                        "source": "Semantic Scholar",
+                        "citations": item.get("citationCount", 0) or 0,
+                        "open_access_pdf_url": oa_pdf_url,
+                        "oa_url": "",
+                    })
+                break  # success — exit retry loop
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                retry_after = int(e.headers.get("Retry-After", 0))
+                wait = retry_after if retry_after > 0 else (2 ** attempt) * 2
+                print(f"Semantic Scholar API warning: HTTP Error 429 — rate limited. "
+                      f"Waiting {wait}s before retry {attempt + 1}/{max_retries}.")
+                if attempt < max_retries - 1:
+                    time.sleep(wait)
+            elif e.code in (500, 502, 503, 504):
+                wait = (2 ** attempt) * 2
+                print(f"Semantic Scholar API warning: HTTP Error {e.code} — transient. "
+                      f"Waiting {wait}s before retry {attempt + 1}/{max_retries}.")
+                if attempt < max_retries - 1:
+                    time.sleep(wait)
+            else:
+                print(f"Semantic Scholar API warning: HTTP Error {e.code} — not retrying.")
+                break
+        except Exception as e:
+            print(f"Semantic Scholar API warning: {e}")
+            break
+
     return papers
 
 
@@ -260,6 +464,140 @@ def fetch_doaj(query: str, limit: int) -> list:
 # Full-text fetchers
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Abstract quality check
+# ---------------------------------------------------------------------------
+
+# Placeholder strings that should NOT be treated as real abstracts
+_FAKE_ABSTRACT_PATTERNS = [
+    r'^\s*$',
+    r'^no abstract available\.?\s*$',
+    r'^abstract not available\.?\s*$',
+    r'^not available\.?\s*$',
+    r'^n/a\.?\s*$',
+    r'^abstract metadata fetched from',  # OpenAlex fallback
+]
+_FAKE_ABSTRACT_RE = re.compile(
+    '|'.join(_FAKE_ABSTRACT_PATTERNS), re.IGNORECASE
+)
+
+def has_real_abstract(text: str) -> bool:
+    """
+    Returns True if `text` is a genuine abstract (not a placeholder).
+    
+    Rejects:
+      - Empty strings
+      - "No abstract available." and variants
+      - Very short strings (< 20 meaningful words)
+      - Known API fallback phrases
+    """
+    if not text or not text.strip():
+        return False
+    if _FAKE_ABSTRACT_RE.match(text.strip()):
+        return False
+    # Require at least 20 words of real content
+    word_count = len(text.strip().split())
+    if word_count < 20:
+        return False
+    return True
+
+
+# Signals that indicate daily quota exhaustion (not transient rate limiting)
+_QUOTA_SIGNALS = [
+    "resource_exhausted",
+    "generate_content_free_tier",
+    "free-tier limit",
+    "free_tier",
+    "generaterequestsperday",
+    "quotavalue",
+    "requests_per_day",
+    "per_day",
+    "daily quota",
+    "daily limit",
+]
+
+
+def _is_quota_exhausted(error_msg: str) -> bool:
+    """Returns True if the error message indicates DAILY quota exhaustion."""
+    msg = error_msg.lower()
+    return any(sig in msg for sig in _QUOTA_SIGNALS)
+
+
+# Module-level Gemini request counter (per-process, approximate)
+_gemini_request_counter: list = [0]
+
+
+def _gemini_generate_with_retry(
+    client,
+    model: str,
+    prompt: str,
+    config,
+    max_retries: int = 3,
+    agent_label: str = "Agent",
+) -> str:
+    """
+    Call client.models.generate_content() with exponential backoff retry.
+
+    - DAILY QUOTA EXHAUSTION (RESOURCE_EXHAUSTED + quota signals):
+      Does NOT retry. Raises GeminiQuotaExhaustedError immediately.
+      Retrying would consume remaining daily budget for no benefit.
+
+    - TRANSIENT ERRORS (429 rate-limit, 500, 502, 503, 504):
+      Retries up to max_retries times with exponential backoff (2s/4s/8s).
+
+    Returns the response text on success.
+    Raises GeminiQuotaExhaustedError on quota exhaustion.
+    Raises the last exception if all transient retries are exhausted.
+    """
+    _gemini_request_counter[0] += 1
+    req_num = _gemini_request_counter[0]
+    print(f"[Gemini] {agent_label} request #{req_num} — sending prompt ({len(prompt)} chars)")
+
+    last_exc = None
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=config,
+            )
+            print(f"[Gemini] {agent_label} request #{req_num} — success")
+            return response.text.strip()
+        except Exception as e:
+            msg = str(e)
+            msg_lower = msg.lower()
+
+            # --- Quota exhaustion: do NOT retry ---
+            if _is_quota_exhausted(msg_lower):
+                print(
+                    f"[Gemini] QUOTA EXHAUSTED on {agent_label} request #{req_num}: {msg[:160]}. "
+                    f"Not retrying (daily limit reached)."
+                )
+                raise GeminiQuotaExhaustedError(
+                    f"Gemini daily quota exhausted during {agent_label} call: {msg}"
+                ) from e
+
+            # --- Transient errors: retry with backoff ---
+            is_transient = any(
+                code in msg_lower
+                for code in ["429", "500", "502", "503", "504",
+                             "unavailable", "internal", "too many requests"]
+            )
+            if is_transient and attempt < max_retries - 1:
+                wait = (2 ** attempt) * 2  # 2s, 4s, 8s
+                print(
+                    f"[Gemini] Transient error on {agent_label} request #{req_num} "
+                    f"attempt {attempt + 1}/{max_retries}: {msg[:100]}. "
+                    f"Retrying in {wait}s..."
+                )
+                time.sleep(wait)
+                last_exc = e
+            else:
+                last_exc = e
+                break
+    raise last_exc
+
+
 def _fetch_arxiv_full_text(arxiv_url: str) -> str:
     """Fetches full-text HTML of an arXiv paper from ar5iv/arxiv.org.
 
@@ -283,11 +621,133 @@ def _fetch_arxiv_full_text(arxiv_url: str) -> str:
     return ""
 
 
-def _fetch_pmc_full_text(url: str) -> str:
-    """Queries Europe PMC open API for full text XML and parses it.
+def _parse_pmc_xml_to_structured_text(root: ET.Element) -> str:
+    """
+    Parse a PMC fullTextXML ElementTree root into structured plain text.
 
-    No character truncation is applied. The complete available text
-    is returned for section-aware compression by the TextRank pipeline.
+    Preserves `<sec>` / `<title>` boundaries so the section parser can
+    detect headings. Returns multi-line text — NOT a single flat string.
+
+    Structure of returned text:
+        [abstract heading if present]
+        abstract paragraph text
+
+        Section Title
+
+        paragraph text
+        paragraph text
+
+        Nested Sub-section Title
+
+        paragraph text
+    """
+    lines: list[str] = []
+
+    def _collect_paragraph_text(elem: ET.Element) -> str:
+        """Recursively collect all text from an element, skipping nested <sec> and <title>."""
+        parts = []
+        if elem.text:
+            parts.append(elem.text.strip())
+        for child in elem:
+            # Skip nested sections and section titles — they are handled separately
+            tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+            if tag in ('sec', 'title'):
+                continue
+            parts.append(_collect_paragraph_text(child))
+            if child.tail:
+                parts.append(child.tail.strip())
+        return ' '.join(p for p in parts if p)
+
+    def _process_sec(sec_elem: ET.Element, depth: int = 0) -> None:
+        """Recursively process a <sec> element and append to lines."""
+        # Find the <title> child of this section
+        title_text = ""
+        for child in sec_elem:
+            tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+            if tag == 'title':
+                raw = ''.join(child.itertext()).strip()
+                # Strip leading section numbers (e.g. "1.2 " or "A. ")
+                raw = re.sub(r'^[\d\.]+\s+', '', raw)
+                raw = re.sub(r'^[A-Z]\.\s+', '', raw)
+                title_text = raw
+                break
+
+        if title_text:
+            lines.append("")
+            lines.append(title_text)
+            lines.append("")
+
+        # Collect paragraphs and nested sections
+        for child in sec_elem:
+            tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+            if tag == 'title':
+                continue  # already handled
+            elif tag == 'sec':
+                _process_sec(child, depth + 1)
+            elif tag in ('p', 'statement', 'caption', 'table-wrap', 'fig'):
+                para = _collect_paragraph_text(child)
+                if para.strip():
+                    lines.append(para.strip())
+            elif tag in ('list',):
+                for item in child.iter():
+                    itag = item.tag.split('}')[-1] if '}' in item.tag else item.tag
+                    if itag == 'list-item':
+                        item_text = _collect_paragraph_text(item).strip()
+                        if item_text:
+                            lines.append(item_text)
+
+    # --- Extract abstract (from article-meta, not body) ---
+    # Handle both namespaced and non-namespaced tags
+    for elem in root.iter():
+        tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
+        if tag == 'abstract':
+            abs_parts = []
+            for child in elem.iter():
+                ctag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+                if ctag == 'p':
+                    pt = _collect_paragraph_text(child).strip()
+                    if pt:
+                        abs_parts.append(pt)
+            if abs_parts:
+                lines.append("Abstract")
+                lines.append("")
+                lines.extend(abs_parts)
+                lines.append("")
+            break  # only first abstract
+
+    # --- Extract body sections ---
+    body_elem = None
+    for elem in root.iter():
+        tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
+        if tag == 'body':
+            body_elem = elem
+            break
+
+    if body_elem is not None:
+        for child in body_elem:
+            tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+            if tag == 'sec':
+                _process_sec(child)
+            elif tag == 'p':
+                para = _collect_paragraph_text(child).strip()
+                if para:
+                    lines.append(para)
+
+    # Join and clean: preserve blank lines (for heading detection), but no triple+ blanks
+    text = '\n'.join(lines)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    # Normalize whitespace within each line (no cross-line collapse)
+    cleaned_lines = []
+    for line in text.split('\n'):
+        cleaned_lines.append(re.sub(r'[ \t]+', ' ', line).rstrip())
+    return '\n'.join(cleaned_lines).strip()
+
+
+def _fetch_pmc_full_text(url: str) -> str:
+    """Queries Europe PMC open API for full text XML and parses structured sections.
+
+    Preserves <sec> and <title> boundaries so the TextRank section parser
+    receives proper section headings. No character truncation applied.
     """
     # Try to extract PMCID from URL or the URL itself
     match = re.search(r'(PMC\d+)', url, re.IGNORECASE)
@@ -300,19 +760,7 @@ def _fetch_pmc_full_text(url: str) -> str:
         with urllib.request.urlopen(req, timeout=10) as resp:
             xml_data = resp.read()
             root = ET.fromstring(xml_data)
-
-            body_text = []
-            for elem in root.iter():
-                if elem.tag == 'body' or elem.tag.endswith('body'):
-                    body_text.append(''.join(elem.itertext()))
-
-            if body_text:
-                text = " ".join(body_text)
-            else:
-                text = ''.join(root.itertext())
-
-            # Preserve full text — no truncation
-            text = re.sub(r'\s+', ' ', text).strip()
+            text = _parse_pmc_xml_to_structured_text(root)
             return text
     except Exception as e:
         print(f"  [PMC FT] PMC XML retrieval failed for {pmcid}: {e}")
@@ -322,9 +770,9 @@ def _fetch_pmc_full_text(url: str) -> str:
 def _fetch_pdf_text(pdf_url: str) -> str:
     """Download a legitimate open-access PDF and extract text using pdfminer.six.
 
-    Returns the full extracted text in page order.
+    Returns the full extracted text preserving line structure for heading detection.
     Returns "" on any error — never crashes the pipeline.
-    No truncation is applied.
+    No truncation applied.
     """
     try:
         req = urllib.request.Request(pdf_url, headers={"User-Agent": "Mozilla/5.0"})
@@ -340,8 +788,14 @@ def _fetch_pdf_text(pdf_url: str) -> str:
             from pdfminer.high_level import extract_text
             text = extract_text(io.BytesIO(pdf_bytes))
             if text:
-                text = re.sub(r'\s+', ' ', text).strip()
-                return text
+                # Preserve line structure for section heading detection.
+                # Only normalize within-line spaces; do NOT collapse across newlines.
+                lines = text.split('\n')
+                cleaned = [re.sub(r'[ \t]+', ' ', line).rstrip() for line in lines]
+                text = '\n'.join(cleaned)
+                # Reduce excessive blank lines (3+ → 2)
+                text = re.sub(r'\n{3,}', '\n\n', text)
+                return text.strip()
         except ImportError:
             print("  [PDF FT] pdfminer.six not installed. Install with: pip install pdfminer.six")
         except Exception as e:
@@ -354,7 +808,8 @@ def _fetch_pdf_text(pdf_url: str) -> str:
 def _fetch_html_text(url: str) -> str:
     """Fetch a URL and extract readable text using BeautifulSoup.
 
-    Strips scripts, styles, and nav elements to return body prose text.
+    Preserves paragraph and heading boundaries with newlines.
+    Strips scripts, styles, and navigation elements.
     Returns "" on any failure.
     """
     try:
@@ -371,11 +826,18 @@ def _fetch_html_text(url: str) -> str:
         soup = BeautifulSoup(html, 'html.parser')
 
         # Remove noise elements
-        for tag in soup(["script", "style", "nav", "footer", "header", "aside", "form"]):
+        for tag in soup(["script", "style", "nav", "footer", "header", "aside", "form", "button", "iframe", "noscript"]):
             tag.decompose()
 
-        text = soup.get_text(separator=' ')
-        text = re.sub(r'\s+', ' ', text).strip()
+        # Insert newlines before/after block elements so section headings & paragraphs are preserved
+        for tag in soup.find_all(["p", "div", "section", "article", "h1", "h2", "h3", "h4", "h5", "h6", "li", "br"]):
+            tag.insert_before("\n\n")
+
+        text = soup.get_text()
+        # Clean within-line spaces while preserving double newlines
+        lines = [re.sub(r'[ \t]+', ' ', line).strip() for line in text.split('\n')]
+        text = '\n'.join(lines)
+        text = re.sub(r'\n{3,}', '\n\n', text).strip()
         return text
     except Exception as e:
         print(f"  [HTML FT] Fetch failed for {url[:60]}: {e}")
@@ -445,101 +907,123 @@ def _resolve_full_text(paper_dict: dict) -> dict:
 
     def _quality_check(text: str, source_label: str, fetch_url: str) -> dict | None:
         """
-        Check whether the acquired text is long enough to qualify as full paper.
-        Returns a result dict if quality is acceptable, None if text is too short.
+        Check whether the acquired text is usable and represents a legitimate full research paper.
+        Returns a result dict with access_status='FULL_TEXT_AVAILABLE' if usable, None otherwise.
         """
-        if not text or not text.strip():
+        if not text or not is_full_text_usable(text):
             return None
+
+        is_valid, reason, stats = validate_full_paper_content(text)
+        if not is_valid:
+            print(f"  [FT Resolver] Retrieved content from {source_label} failed full-paper validation.")
+            print(f"  [FT Resolver] Reason: {reason}")
+            return None
+
         word_count = len(text.split())
-        if FULL_TEXT_MIN_WORDS > 0 and word_count < FULL_TEXT_MIN_WORDS:
-            print(
-                f"  [FT Resolver] WARNING: Text from {source_label} for '{title[:40]}' "
-                f"has only {word_count} words (threshold: {FULL_TEXT_MIN_WORDS}). "
-                f"Marking as partial_paper."
-            )
-            return {
-                "text": text,
-                "source": source_label,
-                "url": fetch_url,
-                "coverage_type": "partial_paper",
-            }
+        cov_type = "full_paper" if word_count >= 600 else "partial_paper"
         return {
             "text": text,
             "source": source_label,
             "url": fetch_url,
-            "coverage_type": "full_paper",
+            "coverage_type": cov_type,
+            "access_status": "FULL_TEXT_AVAILABLE",
         }
+
+    # ── Step 0: Pre-supplied full text (e.g. from upstream fetcher / cache / test) ──
+    pre_supplied = paper_dict.get("full_text", "")
+    if pre_supplied:
+        res = _quality_check(pre_supplied, paper_dict.get("full_text_source") or paper_dict.get("source", "pre_supplied"), url)
+        if res:
+            return res
 
     # ── Step 1: arXiv ────────────────────────────────────────────────────────
     if "arxiv.org" in url:
-        text = _fetch_arxiv_full_text(url)
-        result = _quality_check(text, "arxiv", url)
-        if result:
-            print(f"  [FT Resolver] arXiv: {len(text.split()):,} words")
-            return result
+        try:
+            text = _fetch_arxiv_full_text(url)
+            result = _quality_check(text, "arxiv", url)
+            if result:
+                print(f"  [FT Resolver] arXiv: {len(text.split()):,} words")
+                return result
+        except Exception as e:
+            print(f"  [FT Resolver] arXiv fetch error: {e}")
 
     # ── Step 2: PMC / Europe PMC ─────────────────────────────────────────────
     if re.search(r'(pmc|PMC)', url):
-        text = _fetch_pmc_full_text(url)
-        result = _quality_check(text, "pmc", url)
-        if result:
-            print(f"  [FT Resolver] PMC: {len(text.split()):,} words")
-            return result
+        try:
+            text = _fetch_pmc_full_text(url)
+            result = _quality_check(text, "pmc", url)
+            if result:
+                print(f"  [FT Resolver] PMC: {len(text.split()):,} words")
+                return result
+        except Exception as e:
+            print(f"  [FT Resolver] PMC fetch error: {e}")
 
     # ── Step 3: Semantic Scholar open-access PDF ──────────────────────────────
     if oa_pdf_url:
-        text = _fetch_pdf_text(oa_pdf_url)
-        result = _quality_check(text, "semantic_scholar", oa_pdf_url)
-        if result:
-            print(f"  [FT Resolver] Semantic Scholar PDF: {len(text.split()):,} words")
-            return result
+        try:
+            text = _fetch_pdf_text(oa_pdf_url)
+            result = _quality_check(text, "semantic_scholar", oa_pdf_url)
+            if result:
+                print(f"  [FT Resolver] Semantic Scholar PDF: {len(text.split()):,} words")
+                return result
+        except Exception as e:
+            print(f"  [FT Resolver] Semantic Scholar PDF fetch error: {e}")
 
     # ── Step 4: OpenAlex open-access URL ─────────────────────────────────────
     if oa_url:
-        text = _fetch_html_text(oa_url)
-        result = _quality_check(text, "openalex", oa_url)
-        if result:
-            print(f"  [FT Resolver] OpenAlex OA URL: {len(text.split()):,} words")
-            return result
+        try:
+            text = _fetch_html_text(oa_url)
+            result = _quality_check(text, "openalex", oa_url)
+            if result:
+                print(f"  [FT Resolver] OpenAlex OA URL: {len(text.split()):,} words")
+                return result
+        except Exception as e:
+            print(f"  [FT Resolver] OpenAlex OA URL fetch error: {e}")
 
     # ── Step 5: DOAJ article URL ──────────────────────────────────────────────
-    # DOAJ is open-access by definition. The URL in paper_dict["url"] for DOAJ
-    # papers is already the article link.
     source_api = paper_dict.get("source", "")
     if source_api == "DOAJ" and url:
-        text = _fetch_html_text(url)
-        result = _quality_check(text, "doaj", url)
-        if result:
-            print(f"  [FT Resolver] DOAJ article URL: {len(text.split()):,} words")
-            return result
+        try:
+            text = _fetch_html_text(url)
+            result = _quality_check(text, "doaj", url)
+            if result:
+                print(f"  [FT Resolver] DOAJ article URL: {len(text.split()):,} words")
+                return result
+        except Exception as e:
+            print(f"  [FT Resolver] DOAJ fetch error: {e}")
 
     # ── Step 6: Unpaywall (optional, only if UNPAYWALL_EMAIL is configured) ───
     unpaywall_email = os.getenv("UNPAYWALL_EMAIL", "").strip()
     if unpaywall_email and doi:
-        uw_url = _resolve_unpaywall(doi, unpaywall_email)
-        if uw_url:
-            text = _fetch_pdf_text(uw_url) or _fetch_html_text(uw_url)
-            result = _quality_check(text, "unpaywall", uw_url)
-            if result:
-                print(f"  [FT Resolver] Unpaywall: {len(text.split()):,} words")
-                return result
+        try:
+            uw_url = _resolve_unpaywall(doi, unpaywall_email)
+            if uw_url:
+                text = _fetch_pdf_text(uw_url) or _fetch_html_text(uw_url)
+                result = _quality_check(text, "unpaywall", uw_url)
+                if result:
+                    print(f"  [FT Resolver] Unpaywall: {len(text.split()):,} words")
+                    return result
+        except Exception as e:
+            print(f"  [FT Resolver] Unpaywall fetch error: {e}")
 
-    # ── Fallback: abstract only ───────────────────────────────────────────────
-    if abstract and abstract.strip() and abstract != "No abstract available.":
-        print(f"  [FT Resolver] No full text found. Using abstract only.")
+    # ── Fallback: abstract only or unavailable ────────────────────────────────
+    if abstract and abstract.strip() and not _FAKE_ABSTRACT_RE.match(abstract.strip()):
+        print(f"  [FT Resolver] No full text found. Abstract only available.")
         return {
-            "text": "",           # Empty — compression pipeline will use abstract from paper_dict
+            "text": "",
             "source": "none",
             "url": "",
             "coverage_type": "abstract_only",
+            "access_status": "ABSTRACT_ONLY",
         }
 
-    print(f"  [FT Resolver] No text available for '{title[:50]}'.")
+    print(f"  [FT Resolver] No usable text available for '{title[:50]}'.")
     return {
         "text": "",
         "source": "none",
         "url": "",
         "coverage_type": "unavailable",
+        "access_status": "UNAVAILABLE",
     }
 
 
@@ -548,6 +1032,7 @@ def _resolve_full_text(paper_dict: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 import math
+
 
 def compute_deterministic_relevance(query: str, title: str, abstract: str, year: int, citations: int = 0) -> dict:
     """
@@ -561,6 +1046,14 @@ def compute_deterministic_relevance(query: str, title: str, abstract: str, year:
 
     try:
         from sentence_transformers import SentenceTransformer
+        # Optional: suppress HuggingFace unauthenticated-request warning
+        _hf_token = os.getenv("HF_TOKEN", "").strip()
+        if _hf_token:
+            try:
+                import huggingface_hub
+                huggingface_hub.login(token=_hf_token, add_to_git_credential=False)
+            except Exception:
+                pass  # Non-fatal if huggingface_hub login fails
         _model_cache = getattr(compute_deterministic_relevance, '_model', None)
         if _model_cache is None:
             _model_cache = SentenceTransformer('all-MiniLM-L6-v2')
@@ -598,6 +1091,64 @@ def compute_deterministic_relevance(query: str, title: str, abstract: str, year:
         rank = "Low"
 
     return {"score": final_score, "rank": rank}
+
+
+# ---------------------------------------------------------------------------
+# Domain consistency filter
+# ---------------------------------------------------------------------------
+
+_ECOLOGY_QUERY_TERMS = {
+    "ecology", "ecological", "biodiversity", "species", "habitat",
+    "wildlife", "conservation", "biomass", "flora", "fauna",
+    "environmental", "environment", "ecosystem", "biome", "trophic",
+    "population ecology", "community ecology"
+}
+
+_NON_ECOLOGICAL_METAPHORS = [
+    r'\b(ev|electric\s+vehicle)\s+(service\s+)?ecosystem\b',
+    r'\b(software|hardware|platform|digital|mobile|app|service|technology|developer|it)\s+ecosystem\b',
+    r'\b(business|startup|fintech|payment|financial|enterprise|commercial|e-?commerce|supply\s+chain)\s+ecosystem\b',
+    r'\b(cloud|iot|blockchain|crypto|smart\s+grid|smart\s+city|metaverse)\s+ecosystem\b',
+    r'\binnovation\s+ecosystem\b',
+    r'\bentrepreneurial\s+ecosystem\b',
+]
+_NON_ECOLOGICAL_RE = re.compile('|'.join(_NON_ECOLOGICAL_METAPHORS), re.IGNORECASE)
+
+_GENUINE_ECOLOGY_SIGNALS = {
+    "species", "biodiversity", "habitat", "organism", "biomass", "flora", "fauna",
+    "wildlife", "forest", "marine", "aquatic", "terrestrial", "wetland", "canopy",
+    "trophic", "photosynthesis", "soil", "vegetation", "plant", "animal", "lichen",
+    "conservation", "climate change", "ecological", "ecology", "ecosystem services",
+    "anthropogenic", "carbon sequestration", "abiotic", "biotic"
+}
+
+
+def _detect_domain_mismatch(query: str, title: str, abstract: str) -> float:
+    """
+    Penalizes papers that match query keywords metaphorically in an unrelated domain.
+    E.g. for an ecology query, 'EV Service Ecosystem' or 'Software Platform Ecosystem'
+    will receive a penalty factor (0.45), demoting them from candidate selection.
+    """
+    q_lower = query.lower()
+    q_words = set(re.sub(r'[^a-z0-9\s]', '', q_lower).split())
+
+    is_ecology_query = bool(q_words & _ECOLOGY_QUERY_TERMS) or "ecology" in q_lower or "ecosystem" in q_lower
+    if not is_ecology_query:
+        return 1.0
+
+    text_to_check = f"{title} {abstract}"
+    has_non_eco_metaphor = bool(_NON_ECOLOGICAL_RE.search(text_to_check))
+    if not has_non_eco_metaphor:
+        return 1.0
+
+    t_words = set(re.sub(r'[^a-z0-9\s]', '', text_to_check.lower()).split())
+    has_genuine_eco = bool(t_words & _GENUINE_ECOLOGY_SIGNALS)
+
+    if not has_genuine_eco:
+        print(f"  [Domain Check] Penalizing domain mismatch for: '{title[:60]}...' (non-ecological metaphor)")
+        return 0.45
+
+    return 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -646,7 +1197,7 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
     Full-text resolution order per paper:
       arXiv → PMC → Semantic Scholar OA PDF → OpenAlex OA URL → DOAJ → Unpaywall
     """
-    limit_per_api = 3
+    limit_per_api = 5
 
     # Run all 6 searches
     p1 = fetch_arxiv(query, limit_per_api)
@@ -666,7 +1217,7 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
             seen.add(norm)
             deduplicated.append(p)
 
-    # Calculate deterministic relevance and rank in Python first
+    # Calculate deterministic relevance and rank in Python first (with domain check)
     for p in deduplicated:
         cit_count = p.get("citations", 0) or 0
         rel_info = compute_deterministic_relevance(
@@ -676,67 +1227,164 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
             year=p.get("year", 2024),
             citations=cit_count
         )
-        p["relevance_score"] = rel_info["score"]
-        p["relevance_rank"] = rel_info["rank"]
+        domain_penalty = _detect_domain_mismatch(query, p.get("title", ""), p.get("abstract", ""))
+        adj_score = round(min(0.99, max(0.35, rel_info["score"] * domain_penalty)), 3)
+        if adj_score >= 0.80:
+            adj_rank = "High"
+        elif adj_score >= 0.60:
+            adj_rank = "Medium"
+        else:
+            adj_rank = "Low"
 
-    # Sort all candidates: High rank first, then by relevance_score descending
+        p["relevance_score"] = adj_score
+        p["relevance_rank"] = adj_rank
+        p["_semantic_score"] = rel_info.get("semantic_score", 0.0)
+        p["_keyword_score"] = rel_info.get("keyword_score", 0.0)
+        p["_domain_penalty"] = domain_penalty
+        p["_domain_mismatch"] = domain_penalty < 1.0
+        p["_final_relevance_score"] = round(
+            rel_info.get("semantic_score", 0.0) * rel_info.get("keyword_score", 0.0) * domain_penalty, 4
+        )
+
+    # Sort all candidates by relevance: High rank first, then by relevance_score descending
     rank_order = {"High": 3, "Medium": 2, "Low": 1}
     deduplicated.sort(
         key=lambda x: (rank_order.get(x["relevance_rank"], 1), x["relevance_score"]),
         reverse=True
     )
 
-    # Take top 8 unique candidates
-    candidates = deduplicated[:8]
+    # ── Two-Stage Full-Paper Eligibility Verification ────────────────────────
+    # Evaluate candidates in order of relevance until max_results FULL_TEXT_AVAILABLE
+    # papers are found. Abstract-only and unavailable papers are rejected and NOT
+    # passed to the main research corpus, TextRank compression, or gap analysis.
+    eligible_candidates = []
+    candidate_diagnostics = []
 
-    # ── Full-text resolution + compression ───────────────────────────────────
-    # Resolve full text via the centralized waterfall.
-    # No character truncation. The section-aware extractive compression
-    # pipeline processes whatever text is available.
-    for idx, p in enumerate(candidates):
-        paper_id = f"P{idx+1:03d}"
-        p["paper_id"] = paper_id
+    for idx, p in enumerate(deduplicated):
+        cand_id = f"cand-{idx+1:03d}"
+        sem_score = p.get("_semantic_score", 0.0)
+        kw_score = p.get("_keyword_score", 0.0)
+        dom_penalty = p.get("_domain_penalty", 1.0)
+        dom_mismatch = p.get("_domain_mismatch", False)
+        fin_rel_score = p.get("relevance_score", 0.0)
 
-        # Centralized full-text waterfall
-        ft_result = _resolve_full_text(p)
-        p["full_text"] = ft_result["text"]
-        p["full_text_source"] = ft_result["source"]
-        p["full_text_url"] = ft_result["url"]
-        p["coverage_type"] = ft_result["coverage_type"]
-        p["full_text_available"] = ft_result["coverage_type"] in ("full_paper", "partial_paper")
-        p["full_text_word_count"] = len(ft_result["text"].split()) if ft_result["text"] else 0
-        p["full_text_character_count"] = len(ft_result["text"]) if ft_result["text"] else 0
+        # Only attempt full-text resolution if we still need eligible papers
+        if len(eligible_candidates) < max_results:
+            try:
+                ft_result = _resolve_full_text(p)
+                acc_status = ft_result.get("access_status", "UNAVAILABLE")
+                full_txt = ft_result.get("text", "")
+                is_usable = is_full_text_usable(full_txt)
 
-        # Set compression_source for tracking
-        if p["full_text_available"]:
-            p["compression_source"] = "full_text"
-        elif p.get("abstract", "").strip():
-            p["compression_source"] = "abstract"
+                if acc_status == "FULL_TEXT_AVAILABLE" and is_usable:
+                    paper_id = f"P{len(eligible_candidates)+1:03d}"
+                    p["paper_id"] = paper_id
+                    p["full_text"] = full_txt
+                    p["full_text_source"] = ft_result["source"]
+                    p["full_text_url"] = ft_result["url"]
+                    p["coverage_type"] = ft_result["coverage_type"]
+                    p["access_status"] = "FULL_TEXT_AVAILABLE"
+                    p["full_text_available"] = True
+                    p["full_text_word_count"] = len(full_txt.split()) if full_txt else 0
+                    p["full_text_character_count"] = len(full_txt) if full_txt else 0
+                    p["compression_source"] = "full_text"
+
+                    # Run extractive compression ONLY on eligible full-paper candidate
+                    try:
+                        fact_sheet = compress_paper(
+                            paper_dict=p,
+                            query=query,
+                            paper_id=paper_id,
+                        )
+                        p["fact_sheet"] = fact_sheet
+                        p["fact_sheet_text"] = format_fact_sheet(fact_sheet)
+                        p["compression_ratio"] = fact_sheet.metrics.compression_ratio
+                        p["section_coverage"] = fact_sheet.metrics.section_coverage
+                        p["original_tokens"] = fact_sheet.metrics.original_token_count
+                        p["compressed_tokens"] = fact_sheet.metrics.compressed_token_count
+                        p["coverage_type"] = fact_sheet.coverage_type
+                    except Exception as e:
+                        print(f"[Agent1] Compression error for {paper_id}: {e}")
+                        p["fact_sheet_text"] = p.get("abstract", "")
+                        p["compression_ratio"] = 0.0
+                        p["section_coverage"] = 0.0
+                        p["original_tokens"] = 0
+                        p["compressed_tokens"] = 0
+
+                    eligible_candidates.append(p)
+                    candidate_diagnostics.append(CandidateDiagnostic(
+                        paper_id=paper_id,
+                        title=p.get("title", ""),
+                        semantic_score=sem_score,
+                        keyword_score=kw_score,
+                        domain_penalty=dom_penalty,
+                        domain_mismatch=dom_mismatch,
+                        final_relevance_score=fin_rel_score,
+                        access_status="FULL_TEXT_AVAILABLE",
+                        full_text_source=ft_result.get("source", "none"),
+                        selected=True,
+                        rejection_reason=None
+                    ))
+                else:
+                    rej_reason = (
+                        "Full paper unavailable (abstract only)" if acc_status == "ABSTRACT_ONLY"
+                        else ("Full text content failed usability validation" if full_txt and not is_usable
+                              else "Full paper text unavailable")
+                    )
+                    candidate_diagnostics.append(CandidateDiagnostic(
+                        paper_id=cand_id,
+                        title=p.get("title", ""),
+                        semantic_score=sem_score,
+                        keyword_score=kw_score,
+                        domain_penalty=dom_penalty,
+                        domain_mismatch=dom_mismatch,
+                        final_relevance_score=fin_rel_score,
+                        access_status=acc_status,
+                        full_text_source=ft_result.get("source", "none"),
+                        selected=False,
+                        rejection_reason=rej_reason
+                    ))
+            except Exception as e:
+                print(f"  [FT Resolver] Exception checking candidate '{p.get('title', '')[:30]}': {e}")
+                candidate_diagnostics.append(CandidateDiagnostic(
+                    paper_id=cand_id,
+                    title=p.get("title", ""),
+                    semantic_score=sem_score,
+                    keyword_score=kw_score,
+                    domain_penalty=dom_penalty,
+                    domain_mismatch=dom_mismatch,
+                    final_relevance_score=fin_rel_score,
+                    access_status="ACCESS_CHECK_FAILED",
+                    full_text_source="none",
+                    selected=False,
+                    rejection_reason=f"Access check exception: {str(e)}"
+                ))
         else:
-            p["compression_source"] = "none"
+            candidate_diagnostics.append(CandidateDiagnostic(
+                paper_id=cand_id,
+                title=p.get("title", ""),
+                semantic_score=sem_score,
+                keyword_score=kw_score,
+                domain_penalty=dom_penalty,
+                domain_mismatch=dom_mismatch,
+                final_relevance_score=fin_rel_score,
+                access_status="UNAVAILABLE",
+                full_text_source="none",
+                selected=False,
+                rejection_reason="Target corpus capacity reached; candidate skipped"
+            ))
 
-        # Run extractive compression pipeline (TextRank, not RAG)
-        try:
-            fact_sheet = compress_paper(
-                paper_dict=p,
-                query=query,
-                paper_id=paper_id,
-            )
-            p["fact_sheet"] = fact_sheet
-            p["fact_sheet_text"] = format_fact_sheet(fact_sheet)
-            p["compression_ratio"] = fact_sheet.metrics.compression_ratio
-            p["section_coverage"] = fact_sheet.metrics.section_coverage
-            p["original_tokens"] = fact_sheet.metrics.original_token_count
-            p["compressed_tokens"] = fact_sheet.metrics.compressed_token_count
-            # Propagate fact sheet's actual coverage_type back (it may have overridden to abstract_only)
-            p["coverage_type"] = fact_sheet.coverage_type
-        except Exception as e:
-            print(f"[Agent1] Compression failed for {paper_id} ('{p.get('title', '')[:40]}'): {e}")
-            p["fact_sheet_text"] = p.get("abstract", "")
-            p["compression_ratio"] = 0.0
-            p["section_coverage"] = 0.0
-            p["original_tokens"] = 0
-            p["compressed_tokens"] = 0
+    candidates = eligible_candidates
+    print(f"[Agent1] Full-paper selection: {len(candidates)} eligible full papers selected from {len(deduplicated)} candidates.")
+
+    if not candidates:
+        print(f"[Agent1] WARNING: No candidates had accessible full text.")
+        return Agent1ResearchOutput(
+            query=query,
+            papers=[],
+            candidate_diagnostics=candidate_diagnostics,
+            full_paper_eligibility_rate=1.0
+        )
 
     # Build lite_candidates for the Gemini metadata-extraction prompt.
     # Use fact_sheet_text (extractive summary) — NOT RAG chunks.
@@ -820,12 +1468,14 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
 
     try:
         client = _get_client()
-        response = client.models.generate_content(
+        response_text = _gemini_generate_with_retry(
+            client=client,
             model=GEMINI_MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(response_mime_type="application/json")
+            prompt=prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json"),
+            max_retries=3,
+            agent_label="Agent1",
         )
-        response_text = response.text.strip()
 
         # Clean possible markdown code fences
         if response_text.startswith("```json"):
@@ -878,9 +1528,16 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
                 full_text_source=cand_extra.get("full_text_source", "none"),
                 full_text_url=cand_extra.get("full_text_url", ""),
                 compression_source=cand_extra.get("compression_source", "none"),
-                coverage_type=cand_extra.get("coverage_type", "unavailable"),
+                coverage_type=cand_extra.get("coverage_type", "full_paper"),
+                access_status="FULL_TEXT_AVAILABLE",
                 full_text_word_count=cand_extra.get("full_text_word_count", 0),
                 full_text_character_count=cand_extra.get("full_text_character_count", 0),
+                # Relevance diagnostics
+                semantic_score=cand_extra.get("_semantic_score", 0.0),
+                keyword_score=cand_extra.get("_keyword_score", 0.0),
+                domain_penalty=cand_extra.get("_domain_penalty", 1.0),
+                domain_mismatch=cand_extra.get("_domain_mismatch", False),
+                final_relevance_score=cand_extra.get("_final_relevance_score", 0.0),
             ))
 
         # Sort papers: High rank first, then by relevance_score descending
@@ -889,7 +1546,12 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
             key=lambda x: (rank_order.get(x.relevance_rank, 1), x.relevance_score),
             reverse=True
         )
-        return Agent1ResearchOutput(query=query, papers=parsed_papers)
+        return Agent1ResearchOutput(
+            query=query,
+            papers=parsed_papers,
+            candidate_diagnostics=candidate_diagnostics,
+            full_paper_eligibility_rate=1.0 if parsed_papers else 0.0
+        )
 
     except Exception as e:
         print(f"Error compiling NotebookLM summaries in Agent 1: {e}")
@@ -959,10 +1621,16 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
                 full_text_available=p.get("full_text_available", False),
                 full_text_source=p.get("full_text_source", "none"),
                 full_text_url=p.get("full_text_url", ""),
-                compression_source=p.get("compression_source", "none"),
-                coverage_type=p.get("coverage_type", "unavailable"),
+                compression_source=p.get("compression_source", "full_text"),
+                coverage_type=p.get("coverage_type", "full_paper"),
+                access_status="FULL_TEXT_AVAILABLE",
                 full_text_word_count=p.get("full_text_word_count", 0),
                 full_text_character_count=p.get("full_text_character_count", 0),
+                semantic_score=p.get("_semantic_score", 0.0),
+                keyword_score=p.get("_keyword_score", 0.0),
+                domain_penalty=p.get("_domain_penalty", 1.0),
+                domain_mismatch=p.get("_domain_mismatch", False),
+                final_relevance_score=p.get("_final_relevance_score", 0.0),
             ))
 
 
@@ -971,4 +1639,9 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
             key=lambda x: (rank_order.get(x.relevance_rank, 1), x.relevance_score),
             reverse=True
         )
-        return Agent1ResearchOutput(query=query, papers=fallback_papers)
+        return Agent1ResearchOutput(
+            query=query,
+            papers=fallback_papers,
+            candidate_diagnostics=candidate_diagnostics,
+            full_paper_eligibility_rate=1.0 if fallback_papers else 0.0
+        )

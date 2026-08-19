@@ -40,8 +40,8 @@ def test_full_pipeline():
 
     # 5. Agent 4: Compile PDF
     print("\n[4/4] Running Agent 4: PDF Report Compilation...")
-    pdf_path = compile_final_report(state, output_dir=os.path.dirname(os.path.abspath(__file__)))
-    print(f"  PDF generated at: {pdf_path}")
+    pdf_path, compiler_status = compile_final_report(state, output_dir=os.path.dirname(os.path.abspath(__file__)))
+    print(f"  PDF generated at: {pdf_path} (compiler_status={compiler_status})")
     print(f"  PDF exists? {os.path.exists(pdf_path)} (size: {os.path.getsize(pdf_path):,} bytes)")
 
     # 6. Run Evaluator

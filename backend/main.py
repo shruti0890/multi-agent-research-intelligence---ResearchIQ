@@ -76,22 +76,29 @@ def trigger_agent_pipeline(request: ResearchRequest):
         topic=topic,
         research=research_out,
         gaps=gap_out,
-        patents=patent_out
+        patents=patent_out,
     )
-    
+
+    # Propagate Gemini quota status from Agent 3 (patent analysis)
+    if patent_out.patent_analysis_status in ("retrieval_success_synthesis_failed",):
+        state.gemini_quota_exhausted = True
+
     # 5. Agent 4: Compile PDF Report
     print("Executing Agent 4: PDF Generation...")
     # Save PDF in a temp/static directory inside the scratch workspace
     output_dir = os.path.dirname(os.path.abspath(__file__))
     try:
-        pdf_path = compile_final_report(state, output_dir=output_dir)
-        filename = os.path.basename(pdf_path)
-        state.pdf_filename = filename
-        print(f"Pipeline completed. PDF generated at: {pdf_path}")
+        pdf_path, compiler_status = compile_final_report(state, output_dir=output_dir)
+        state.pdf_filename = os.path.basename(pdf_path)
+        state.compiler_status = compiler_status
+        if compiler_status == "fallback_due_to_gemini":
+            state.gemini_quota_exhausted = True
+        print(f"Pipeline completed. PDF generated at: {pdf_path} (compiler_status={compiler_status})")
     except Exception as e:
         print(f"Error compiling PDF: {e}")
         state.pdf_filename = None
-        
+        state.compiler_status = "fallback_due_to_gemini"
+
     return state
 
 @app.get("/api/download/{filename}")

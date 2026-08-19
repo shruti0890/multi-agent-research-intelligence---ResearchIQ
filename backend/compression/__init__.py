@@ -21,6 +21,11 @@ from .models import (
     CompressionConfig,
     CompressionMetrics,
     DEFAULT_CONFIG,
+    TARGET_RETENTION_MIN,
+    TARGET_RETENTION_MAX,
+    TARGET_RETENTION_DEFAULT,
+    TARGET_COMPRESSION_MIN,
+    TARGET_COMPRESSION_MAX,
 )
 
 __all__ = [
@@ -33,4 +38,9 @@ __all__ = [
     "CompressionConfig",
     "CompressionMetrics",
     "DEFAULT_CONFIG",
+    "TARGET_RETENTION_MIN",
+    "TARGET_RETENTION_MAX",
+    "TARGET_RETENTION_DEFAULT",
+    "TARGET_COMPRESSION_MIN",
+    "TARGET_COMPRESSION_MAX",
 ]

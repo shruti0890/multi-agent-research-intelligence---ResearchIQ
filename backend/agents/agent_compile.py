@@ -17,7 +17,7 @@ import matplotlib
 matplotlib.use('Agg') # Non-interactive backend
 import matplotlib.pyplot as plt
 
-from schemas import ProjectReportState  # type: ignore
+from schemas import ProjectReportState, GeminiQuotaExhaustedError  # type: ignore
 
 load_dotenv(override=True)
 
@@ -32,6 +32,88 @@ def _get_client():
     return _gemini_client
 
 GEMINI_MODEL = "gemini-2.5-flash"
+
+
+# Quota exhaustion detection (same logic as other agents)
+_QUOTA_SIGNALS = [
+    "resource_exhausted",
+    "generate_content_free_tier",
+    "free-tier limit",
+    "free_tier",
+    "generaterequestsperday",
+    "quotavalue",
+    "requests_per_day",
+    "per_day",
+    "daily quota",
+    "daily limit",
+]
+
+
+def _is_quota_exhausted(error_msg: str) -> bool:
+    msg = error_msg.lower()
+    return any(sig in msg for sig in _QUOTA_SIGNALS)
+
+
+_gemini_request_counter: list = [0]
+
+
+def _gemini_generate_with_retry(
+    client,
+    model: str,
+    prompt: str,
+    config,
+    max_retries: int = 3,
+    agent_label: str = "Agent4",
+) -> str:
+    """
+    Call client.models.generate_content() with exponential backoff retry.
+    - QUOTA EXHAUSTION: raises GeminiQuotaExhaustedError immediately (no retry).
+    - TRANSIENT ERRORS (429 rate-limit, 500, 502, 503, 504): retries with backoff (2s/4s/8s).
+    """
+    _gemini_request_counter[0] += 1
+    req_num = _gemini_request_counter[0]
+    print(f"[Gemini] {agent_label} request #{req_num} — sending prompt ({len(prompt)} chars)")
+
+    last_exc = None
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=config,
+            )
+            print(f"[Gemini] {agent_label} request #{req_num} — success")
+            return response.text.strip()
+        except Exception as e:
+            msg = str(e)
+            msg_lower = msg.lower()
+
+            if _is_quota_exhausted(msg_lower):
+                print(
+                    f"[Gemini] QUOTA EXHAUSTED on {agent_label} request #{req_num}: {msg[:160]}. "
+                    f"Not retrying (daily limit reached)."
+                )
+                raise GeminiQuotaExhaustedError(
+                    f"Gemini daily quota exhausted during {agent_label} call: {msg}"
+                ) from e
+
+            is_transient = any(
+                code in msg_lower
+                for code in ["429", "500", "502", "503", "504",
+                             "unavailable", "internal", "too many requests"]
+            )
+            if is_transient and attempt < max_retries - 1:
+                wait = (2 ** attempt) * 2
+                print(
+                    f"[Gemini] Transient error on {agent_label} request #{req_num} "
+                    f"attempt {attempt + 1}/{max_retries}: {msg[:100]}. Retrying in {wait}s..."
+                )
+                time.sleep(wait)
+                last_exc = e
+            else:
+                last_exc = e
+                break
+    raise last_exc
 
 
 def _esc(val) -> str:
@@ -265,19 +347,40 @@ def compile_final_report(state: ProjectReportState, output_dir: str = ".") -> st
     
     try:
         client = _get_client()
-        response = client.models.generate_content(
+        response_text = _gemini_generate_with_retry(
+            client=client,
             model=GEMINI_MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(response_mime_type="application/json")
+            prompt=prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json"),
+            max_retries=3,
+            agent_label="Agent4",
         )
-        data = json.loads(response.text.strip())
+        data = json.loads(response_text.strip())
         summary_narrative = data.get("summary", summary_narrative)
         recs_narrative = "\n".join([f"• {r}" for r in data.get("recommendations", [])])
+        compiler_gemini_ok = True
+        state.compiler_status = "success"
     except Exception as e:
-        print(f"Error calling Gemini in compiler: {e}")
+        err_str = str(e)
+        if _is_quota_exhausted(err_str.lower()):
+            print(f"[Gemini] Agent4 QUOTA EXHAUSTED: {err_str[:160]}. Using fallback narrative.")
+            state.gemini_quota_exhausted = True
+        else:
+            print(f"[Gemini] Agent4 error: {err_str[:160]}. Using fallback narrative.")
+        compiler_gemini_ok = False
+        state.compiler_status = "fallback_due_to_gemini"
         
     # Generate Matplotlib charts
     chart_paths = _generate_charts(state, output_dir)
+
+    # Determine patent analysis status for the report
+    patent_status = getattr(state.patents, "patent_analysis_status", "success")
+    patent_status_display = {
+        "success": "✅ Gemini patent synthesis: completed",
+        "retrieval_success_synthesis_failed": "⚠️ Gemini patent synthesis unavailable — raw patent data preserved",
+        "retrieval_failed": "❌ Patent retrieval failed",
+    }.get(patent_status, patent_status)
+
     
     # Setup document
     clean_topic_slug = "".join(c if c.isalnum() else "_" for c in state.topic.lower()).strip("_")
@@ -341,7 +444,33 @@ def compile_final_report(state: ProjectReportState, output_dir: str = ".") -> st
     # ================================================================
     story.append(Paragraph("1. Executive Summary", S['h1']))
     story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#E2E8F0'), spaceAfter=8))
-    
+
+    # ── Gemini-unavailable banner ────────────────────────────────────────────
+    if not compiler_gemini_ok:
+        banner_text = (
+            "<b>⚠️ Gemini AI Unavailable — Fallback Mode</b><br/>"
+            "The Gemini daily API quota was exhausted during this run. "
+            "The Executive Summary and Strategic Recommendations below were generated using "
+            "a deterministic fallback (based on paper abstracts and gap descriptions), "
+            "NOT by Gemini. Patent data was preserved from live database retrieval."
+        )
+        banner_para = Paragraph(_esc(banner_text), S['body'])
+        banner_table = Table([[banner_para]], colWidths=[522])
+        banner_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#FFFBEB')),
+            ('BOX', (0, 0), (-1, -1), 1.5, colors.HexColor('#D97706')),
+            ('LINELEFT', (0, 0), (-1, -1), 5, colors.HexColor('#D97706')),
+            ('TOPPADDING', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+            ('LEFTPADDING', (0, 0), (-1, -1), 14),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 14),
+        ]))
+        story.append(banner_table)
+        story.append(Spacer(1, 8))
+    # ── Patent synthesis status line ─────────────────────────────────────────
+    story.append(Paragraph(_esc(patent_status_display), S['body']))
+    story.append(Spacer(1, 8))
+
     exec_box = Table([[Paragraph(_esc(summary_narrative), S['body'])]], colWidths=[522])
     exec_box.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F8FAFC')),
@@ -717,5 +846,6 @@ def compile_final_report(state: ProjectReportState, output_dir: str = ".") -> st
 
     # Build document
     doc.build(story)
-    
-    return os.path.abspath(file_path)
+
+    compiler_status = "success" if compiler_gemini_ok else "fallback_due_to_gemini"
+    return os.path.abspath(file_path), compiler_status

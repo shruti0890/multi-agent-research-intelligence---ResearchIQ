@@ -141,13 +141,27 @@ def evaluate_compression_pipeline(state: ProjectReportState) -> List[Dict[str, A
             record["compressed_tokens_estimated"] = m.compressed_token_count
             record["token_count_method"] = getattr(m, 'token_count_method', 'estimated_word_split')
             record["compression_ratio"] = round(m.compression_ratio, 4)
+            record["compression_status"] = getattr(m, 'compression_status', 'evaluated')
             record["sections_detected"] = m.detected_sections
             record["sections_covered"] = m.covered_sections
-            record["section_coverage"] = round(m.section_coverage, 4)
+            record["section_coverage"] = round(m.section_coverage, 4)  # legacy
+            # Correct research-section-aware coverage
+            record["research_sections"] = getattr(m, 'research_sections', 0)
+            record["research_sections_covered"] = getattr(m, 'research_sections_covered', 0)
+            record["research_section_coverage"] = round(getattr(m, 'research_section_coverage', 0.0), 4)
+            record["non_research_sections_skipped"] = getattr(m, 'non_research_sections_skipped', 0)
             record["selected_sentences"] = m.selected_sentence_count
             record["technical_sentences"] = m.technical_sentence_count
             record["faithfulness_ratio"] = round(m.faithfulness_ratio, 4)
             record["coverage_type"] = getattr(fact_sheet, 'coverage_type', record["coverage_type"])
+
+        # Relevance diagnostic fields (populated from Agent 1 scoring)
+        record["access_status"] = getattr(paper, 'access_status', 'UNAVAILABLE')
+        record["semantic_score"] = getattr(paper, 'semantic_score', 0.0)
+        record["keyword_score"] = getattr(paper, 'keyword_score', 0.0)
+        record["domain_penalty"] = getattr(paper, 'domain_penalty', 1.0)
+        record["domain_mismatch"] = getattr(paper, 'domain_mismatch', False)
+        record["final_relevance_score"] = getattr(paper, 'final_relevance_score', 0.0)
 
         records.append(record)
 
@@ -166,7 +180,21 @@ def run_evaluation(state: ProjectReportState, output_path: str = "evaluation_res
     relevance_metrics = evaluate_relevance_accuracy(state)
     compression_records = evaluate_compression_pipeline(state)
 
+    # Pipeline-level status metadata
+    eligibility_rate = getattr(state.research, 'full_paper_eligibility_rate', 1.0)
+    pipeline_status = {
+        "compiler_status": getattr(state, 'compiler_status', 'success'),
+        "gemini_quota_exhausted": getattr(state, 'gemini_quota_exhausted', False),
+        "patent_analysis_status": getattr(state.patents, 'patent_analysis_status', 'success'),
+        "full_paper_eligibility_rate": eligibility_rate,
+        "total_papers": len(state.research.papers),
+        "total_gaps": len(state.gaps.gaps),
+        "total_patents": len(state.patents.patents),
+        "candidates_evaluated": len(getattr(state.research, 'candidate_diagnostics', [])),
+    }
+
     results = {
+        "pipeline_status": pipeline_status,
         "summary_evaluation": summary_metrics,
         "relevance_evaluation": relevance_metrics,
         "compression_pipeline": compression_records,
@@ -175,27 +203,39 @@ def run_evaluation(state: ProjectReportState, output_path: str = "evaluation_res
     with open(output_path, 'w') as f:
         json.dump(results, f, indent=2)
 
-    print("\n" + "="*55)
+    print("\n" + "="*65)
     print("          QUANTITATIVE EVALUATION RESULTS")
-    print("="*55)
-    print(f"ROUGE-1 F1 Score: {summary_metrics['rouge1_f1']*100:.2f}%")
-    print(f"ROUGE-2 F1 Score: {summary_metrics['rouge2_f1']*100:.2f}%")
-    print(f"ROUGE-L F1 Score: {summary_metrics['rougeL_f1']*100:.2f}%")
-    print("-"*55)
+    print("="*65)
+    print(f"ROUGE-1 F1 Score : {summary_metrics['rouge1_f1']*100:.2f}%")
+    print(f"ROUGE-2 F1 Score : {summary_metrics['rouge2_f1']*100:.2f}%")
+    print(f"ROUGE-L F1 Score : {summary_metrics['rougeL_f1']*100:.2f}%")
+    print("-"*65)
+    print(f"Pipeline Status  : compiler={pipeline_status['compiler_status']} | "
+          f"quota_exhausted={pipeline_status['gemini_quota_exhausted']} | "
+          f"patents={pipeline_status['patent_analysis_status']}")
+    print(f"Full-Paper Eligibility Rate : {eligibility_rate*100:.1f}% (Main Corpus)")
+    print("-"*65)
     print(f"Total Papers Processed: {relevance_metrics['total_papers']}")
-    print(f"  High Relevance: {relevance_metrics['high_relevance_pct']:.1f}%")
+    print(f"  High Relevance  : {relevance_metrics['high_relevance_pct']:.1f}%")
     print(f"  Medium Relevance: {relevance_metrics['medium_relevance_pct']:.1f}%")
-    print(f"  Low Relevance: {relevance_metrics['low_relevance_pct']:.1f}%")
-    print("-"*55)
+    print(f"  Low Relevance   : {relevance_metrics['low_relevance_pct']:.1f}%")
+    print("-"*65)
     print(f"Per-Paper Compression Records: {len(compression_records)}")
     for rec in compression_records:
         ctype = rec.get("coverage_type", "unavailable")
-        ratio = rec.get("compression_ratio", 0.0) * 100
+        cstatus = rec.get("compression_status", "evaluated")
+        rs_cov = rec.get("research_section_coverage", None)
         faithful = rec.get("faithfulness_ratio", 1.0) * 100
+        if cstatus == "abstract_only_not_evaluated":
+            ratio_str = "N/A (abstract only)"
+        else:
+            ratio_str = f"{rec.get('compression_ratio', 0.0) * 100:.1f}%"
+        rs_cov_str = f"{rs_cov*100:.0f}%" if rs_cov is not None else "N/A"
         print(
-            f"  [{rec['paper_id']}] {rec['title'][:40]:40s} | "
-            f"Coverage: {ctype:14s} | Compression: {ratio:.1f}% | Faithfulness: {faithful:.1f}%"
+            f"  [{rec['paper_id']}] {rec['title'][:36]:36s} | "
+            f"{ctype:14s} | Compression: {ratio_str:18s} | "
+            f"ResearchCoverage: {rs_cov_str:6s} | Faithfulness: {faithful:.1f}%"
         )
-    print("="*55 + "\n")
+    print("="*65 + "\n")
 
     return results

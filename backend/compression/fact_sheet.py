@@ -32,13 +32,21 @@ from .models import (
     PaperFactSheet,
     SectionFactSheet,
 )
-from .section_parser import parse_paper_sections
+from .section_parser import NON_RESEARCH_SECTIONS, parse_paper_sections
 from .technical_preservation import (
     filter_technical_sentences,
     score_technical_importance,
 )
-from .textrank import run_textrank_for_section, segment_sentences
-from .token_utils import measure_compression, validate_extracted_sentence
+from .textrank import (
+    _textrank_scores,
+    run_textrank_for_section,
+    segment_sentences,
+)
+from .token_utils import (
+    estimate_tokens,
+    measure_compression,
+    validate_extracted_sentence,
+)
 
 # ---------------------------------------------------------------------------
 # Section abbreviation map for sentence IDs
@@ -46,6 +54,7 @@ from .token_utils import measure_compression, validate_extracted_sentence
 _SECTION_ABBREV: Dict[str, str] = {
     "abstract": "ABS",
     "introduction": "INTRO",
+    "background": "BG",
     "related_work": "RW",
     "problem_definition": "PROB",
     "methodology": "METH",
@@ -115,141 +124,68 @@ def _apply_diversity_filter(
 
 
 # ---------------------------------------------------------------------------
-# Per-section compression
+# Sentence Candidate Extraction & Scoring
 # ---------------------------------------------------------------------------
 
-def _compress_section(
+def _extract_and_score_section_sentences(
     paper_id: str,
     section_name: str,
     section_text: str,
     config: CompressionConfig,
-) -> SectionFactSheet:
+) -> List[dict]:
     """
-    Compress a single section using TextRank + technical preservation + diversity.
-    Returns a SectionFactSheet with fully provenance-annotated sentences.
+    Segments a section into sentences, computes TextRank PageRank scores,
+    evaluates technical feature density, and computes a composite priority score.
+
+    Returns a list of candidate dictionaries:
+        {
+            "paper_id": str,
+            "section": str,
+            "index": int,
+            "text": str,
+            "tokens": int,
+            "textrank_score": float,
+            "technical_score": float,
+            "composite_score": float,
+        }
     """
-    budget = config.budgets.get(section_name, config.budgets.get("unknown"))
-    max_s = budget.max_sentences
-    min_s = budget.min_sentences
+    if not section_text or not section_text.strip():
+        return []
 
-    abbrev = _section_abbrev(section_name)
-    original_word_count = len(section_text.split())
-
-    # --- Warn on unusually large sections ---
+    # Warn on unusually large sections
     if len(section_text) > config.section_size_warn_chars:
         print(
             f"[COMPRESSION] WARNING: Section '{section_name}' in {paper_id} "
             f"is {len(section_text):,} chars. Processing normally (no truncation)."
         )
 
-    # --- TextRank: get (original_index, text, tr_score) ---
-    textrank_candidates = run_textrank_for_section(
-        section_text, max_sentences=max_s, min_sentences=min_s
-    )
+    sentences = segment_sentences(section_text)
+    if not sentences:
+        return []
 
-    if not textrank_candidates:
-        # Section has no parseable sentences — return empty fact sheet
-        return SectionFactSheet(
-            section_name=section_name,
-            original_word_count=original_word_count,
-            selected_sentence_count=0,
-            technical_sentence_count=0,
-            selected_sentences=[],
-        )
+    tr_scores = _textrank_scores(sentences)
+    sec_weight = config.section_priority_weights.get(section_name, 1.0)
 
-    # --- Annotate all sentences with technical scores ---
-    annotated = filter_technical_sentences(textrank_candidates, threshold=0.0)
-    # annotated: [(idx, text, tr_score, tech_score)]
+    candidates = []
+    for i, sent in enumerate(sentences):
+        tech_score = score_technical_importance(sent)
+        tr_score = tr_scores[i] if i < len(tr_scores) else 0.0
+        # Priority order: Section weight * (TextRank + technical boost)
+        composite = (tr_score + (tech_score * config.technical_weight)) * sec_weight
+        tokens = estimate_tokens(sent)
 
-    # --- Force-add technical sentences not already selected ---
-    # Get all sentences in section for force-include check
-    all_sentences = segment_sentences(section_text)
-    all_annotated = []
-    selected_indices = {idx for idx, _, _, _ in annotated}
+        candidates.append({
+            "paper_id": paper_id,
+            "section": section_name,
+            "index": i,
+            "text": sent,
+            "tokens": tokens,
+            "textrank_score": tr_score,
+            "technical_score": tech_score,
+            "composite_score": composite,
+        })
 
-    for i, sent in enumerate(all_sentences):
-        if i not in selected_indices:
-            tech_score = score_technical_importance(sent)
-            if tech_score >= 0.25:
-                # Force-include important technical sentence not in TextRank top-k
-                # Only if we haven't already hit max budget
-                if len(annotated) < max_s:
-                    all_annotated.append((i, sent, 0.0, tech_score))
-
-    # Merge TextRank picks with forced technical sentences
-    combined = list(annotated) + all_annotated
-    # Sort by combined score descending for diversity filtering
-    combined.sort(key=lambda x: x[2] + x[3] * config.technical_weight, reverse=True)
-
-    # --- Diversity filter ---
-    filtered = _apply_diversity_filter(combined, threshold=config.diversity_threshold)
-
-    # --- Enforce budget constraints ---
-    # Keep best up to max_s, ensuring at least min_s
-    if len(filtered) > max_s:
-        # Sort by combined score to keep best ones, then restore order
-        filtered_scored = sorted(
-            filtered, key=lambda x: x[2] + x[3] * config.technical_weight, reverse=True
-        )[:max_s]
-        filtered = sorted(filtered_scored, key=lambda x: x[0])
-    elif len(filtered) < min_s and all_sentences:
-        # Add more sentences if below minimum
-        already_have = {idx for idx, _, _, _ in filtered}
-        for i, sent in enumerate(all_sentences):
-            if i not in already_have:
-                tech_score = score_technical_importance(sent)
-                filtered.append((i, sent, 0.0, tech_score))
-                if len(filtered) >= min_s:
-                    break
-        filtered.sort(key=lambda x: x[0])
-
-    # --- Build ExtractedSentence objects with provenance ---
-    extracted: List[ExtractedSentence] = []
-    textrank_indices = {idx for idx, _, _, _ in annotated}
-    technical_count = 0
-
-    for pos, (orig_idx, text, tr_score, tech_score) in enumerate(filtered):
-        # Determine selection reason
-        in_textrank = orig_idx in textrank_indices
-        is_technical = tech_score >= 0.25
-
-        if in_textrank and is_technical:
-            reason = "textrank+technical"
-        elif in_textrank:
-            reason = "textrank"
-        elif is_technical:
-            reason = "technical"
-        else:
-            reason = "min_coverage"
-
-        if is_technical:
-            technical_count += 1
-
-        sentence_id = f"{paper_id}-{abbrev}-{orig_idx:02d}"
-
-        # Source validation
-        verified = validate_extracted_sentence(text, section_text)
-
-        extracted.append(ExtractedSentence(
-            sentence_id=sentence_id,
-            paper_id=paper_id,
-            section=section_name,
-            text=text,
-            original_index=orig_idx,
-            textrank_score=round(tr_score, 6),
-            technical_score=round(tech_score, 4),
-            selected=True,
-            selection_reason=reason,
-            source_verified=verified,
-        ))
-
-    return SectionFactSheet(
-        section_name=section_name,
-        original_word_count=original_word_count,
-        selected_sentence_count=len(extracted),
-        technical_sentence_count=technical_count,
-        selected_sentences=extracted,
-    )
+    return candidates
 
 
 # ---------------------------------------------------------------------------
@@ -263,7 +199,8 @@ def compress_paper(
     config: CompressionConfig = DEFAULT_CONFIG,
 ) -> PaperFactSheet:
     """
-    Compress a single paper dict into a PaperFactSheet.
+    Compress a single paper dict into a PaperFactSheet targeting 65–75% RETENTION
+    (25–35% reduction, preferred ~70% retention).
 
     Parameters
     ----------
@@ -303,17 +240,29 @@ def compress_paper(
         )
 
     # If no full text, use abstract as the only available content
-    # Track coverage_type: caller may pass 'partial_paper' or 'full_paper' in paper_dict.
-    # If we fall back to abstract here, override to 'abstract_only'.
     input_coverage_type = paper_dict.get("coverage_type", "unavailable")
 
+    def _has_real_abstract(text: str) -> bool:
+        if not text or not text.strip():
+            return False
+        _placeholder_re = re.compile(
+            r'^(no abstract available\.?|abstract not available\.?|not available\.?|n/a\.?|abstract metadata fetched from)\s*$',
+            re.IGNORECASE
+        )
+        if _placeholder_re.match(text.strip()):
+            return False
+        return len(text.strip().split()) >= 5
+
     if not raw_text.strip():
-        if abstract_text.strip():
+        if _has_real_abstract(abstract_text):
             print(f"[COMPRESSION] {paper_id}: No full text. Using abstract only.")
             raw_text = abstract_text
             resolved_coverage = "abstract_only"
         else:
-            print(f"[COMPRESSION] {paper_id}: No text available. Empty fact sheet.")
+            if abstract_text.strip():
+                print(f"[COMPRESSION] {paper_id}: No full text and no real abstract (placeholder). Empty fact sheet.")
+            else:
+                print(f"[COMPRESSION] {paper_id}: No text available. Empty fact sheet.")
             return PaperFactSheet(
                 paper_id=paper_id,
                 title=title,
@@ -324,8 +273,6 @@ def compress_paper(
                 sections={},
             )
     else:
-        # Full text was provided — respect the caller's coverage_type
-        # (full_paper or partial_paper, set by the full-text resolver)
         resolved_coverage = input_coverage_type if input_coverage_type in (
             "full_paper", "partial_paper"
         ) else "full_paper"
@@ -338,35 +285,212 @@ def compress_paper(
         paper_size_warn_chars=config.paper_size_warn_chars,
     )
 
-    # If section parser found nothing useful, treat as flat "unknown"
     if not sections_raw:
         sections_raw = {"unknown": raw_text}
 
-    # Ensure the abstract from metadata is always present
     if "abstract" not in sections_raw and abstract_text.strip():
         sections_raw["abstract"] = abstract_text
 
     print(f"[COMPRESSION] {paper_id}: Detected sections: {list(sections_raw.keys())}")
 
-    # ── Per-section compression ──────────────────────────────────────────────
-    section_sheets: Dict[str, SectionFactSheet] = {}
-    all_selected_text_parts: List[str] = []
+    # ── Token Targets: 65–75% RETENTION (Target ~70%) ────────────────────────
+    orig_tokens = estimate_tokens(raw_text)
+    min_target_tokens = int(round(orig_tokens * config.target_retention_min))      # 65%
+    max_target_tokens = int(round(orig_tokens * config.target_retention_max))      # 75%
+    preferred_target_tokens = int(round(orig_tokens * config.target_retention_default))  # 70%
+
+    # ── Segment & Score Research Sections ────────────────────────────────────
+    non_research_count = 0
+    research_section_names: List[str] = []
+    section_candidates: Dict[str, List[dict]] = {}
 
     for section_name, section_text in sections_raw.items():
         if not section_text.strip():
             continue
-        sheet = _compress_section(paper_id, section_name, section_text, config)
-        section_sheets[section_name] = sheet
-        for sent in sheet.selected_sentences:
-            all_selected_text_parts.append(sent.text)
+        if section_name in NON_RESEARCH_SECTIONS:
+            print(f"[COMPRESSION] {paper_id}: Skipping non-research section '{section_name}'")
+            non_research_count += 1
+            continue
+
+        research_section_names.append(section_name)
+        cands = _extract_and_score_section_sentences(
+            paper_id=paper_id,
+            section_name=section_name,
+            section_text=section_text,
+            config=config,
+        )
+        if cands:
+            section_candidates[section_name] = cands
+
+    # Calculate total available candidate tokens across all research sections
+    available_candidate_tokens = sum(
+        sum(c["tokens"] for c in cands) for cands in section_candidates.values()
+    )
+
+    # ── Candidate Pool Diagnostics ───────────────────────────────────────────
+    research_text_tokens = sum(estimate_tokens(sections_raw.get(s, "")) for s in research_section_names)
+    excluded_non_research_tokens = sum(estimate_tokens(sections_raw.get(s, "")) for s in sections_raw if s in NON_RESEARCH_SECTIONS)
+    sent_extracted_tokens = available_candidate_tokens
+    filtered_sent_tokens = sent_extracted_tokens
+    candidate_pool_tokens = available_candidate_tokens
+
+    print(
+        f"[COMPRESSION] {paper_id} Diagnostics:\n"
+        f"  Original raw tokens        : {orig_tokens:,}\n"
+        f"  Research text tokens       : {research_text_tokens:,}\n"
+        f"  Excluded non-research tokens: {excluded_non_research_tokens:,}\n"
+        f"  Sentence extraction tokens : {sent_extracted_tokens:,}\n"
+        f"  Filtered sentence tokens   : {filtered_sent_tokens:,}\n"
+        f"  Candidate pool tokens      : {candidate_pool_tokens:,}"
+    )
+
+    # ── Sentence Selection Algorithm ─────────────────────────────────────────
+    # Phase 1: Guaranteed Research Section Coverage (Minimum allocation)
+    selected_by_section: Dict[str, List[dict]] = {sec: [] for sec in research_section_names}
+    selected_indices_by_section: Dict[str, set] = {sec: set() for sec in research_section_names}
+    current_tokens = 0
+
+    for sec_name, cands in section_candidates.items():
+        base_budget = config.budgets.get(sec_name, config.budgets.get("unknown"))
+        min_s = min(len(cands), max(1, base_budget.min_sentences if base_budget else 1))
+
+        # Sort candidates in this section by composite score descending
+        sorted_cands = sorted(cands, key=lambda c: c["composite_score"], reverse=True)
+        for c in sorted_cands[:min_s]:
+            c["selection_reason"] = "min_coverage"
+            selected_by_section[sec_name].append(c)
+            selected_indices_by_section[sec_name].add(c["index"])
+            current_tokens += c["tokens"]
+
+    # Phase 2: Priority Global Token Accumulation up to Preferred Target (~70%)
+    remaining_candidates: List[dict] = []
+    for sec_name, cands in section_candidates.items():
+        for c in cands:
+            if c["index"] not in selected_indices_by_section[sec_name]:
+                remaining_candidates.append(c)
+
+    # Sort global candidate pool by composite score descending
+    remaining_candidates.sort(key=lambda c: c["composite_score"], reverse=True)
+
+    for c in remaining_candidates:
+        # Check if preferred retention target is reached
+        if current_tokens >= preferred_target_tokens:
+            if current_tokens >= min_target_tokens:
+                break
+
+        sec_name = c["section"]
+        c_tokens = c["tokens"]
+
+        # Check section max_sentences limit if configured
+        sec_budget = config.budgets.get(sec_name, config.budgets.get("unknown"))
+        if sec_budget and len(selected_by_section[sec_name]) >= sec_budget.max_sentences:
+            continue
+
+        # Diversity check within section: skip near-duplicate unless needed for minimum retention
+        is_duplicate = False
+        if config.diversity_threshold < 1.0:
+            for sel in selected_by_section[sec_name]:
+                if _jaccard(c["text"], sel["text"]) >= config.diversity_threshold:
+                    is_duplicate = True
+                    break
+
+        if is_duplicate and (current_tokens + c_tokens >= min_target_tokens):
+            continue
+
+        # Prevent exceeding maximum target tokens (75%) if already at or above minimum (65%)
+        if (current_tokens + c_tokens > max_target_tokens) and (current_tokens >= min_target_tokens):
+            continue
+
+        # Determine selection reason
+        tr_score = c["textrank_score"]
+        tech_score = c["technical_score"]
+        if tr_score > 0 and tech_score >= 0.25:
+            reason = "textrank+technical"
+        elif tr_score > 0:
+            reason = "textrank"
+        elif tech_score >= 0.25:
+            reason = "technical"
+        else:
+            reason = "budget_fill"
+
+        c["selection_reason"] = reason
+        selected_by_section[sec_name].append(c)
+        selected_indices_by_section[sec_name].add(c["index"])
+        current_tokens += c_tokens
+
+    # Phase 3: Insufficient Candidate Detection & Warning
+    if current_tokens < min_target_tokens and orig_tokens > 500:
+        shortfall = max(0, min_target_tokens - current_tokens)
+        print(
+            f"[COMPRESSION] WARNING: Insufficient eligible source sentences to reach retention target.\n"
+            f"  Original tokens           : {orig_tokens:,}\n"
+            f"  Available candidate tokens: {available_candidate_tokens:,}\n"
+            f"  Target tokens             : {min_target_tokens:,}–{max_target_tokens:,}\n"
+            f"  Actual tokens             : {current_tokens:,}\n"
+            f"  Shortfall                 : {shortfall:,}"
+        )
+
+    # ── Build Section Fact Sheets with Provenance & Verbatim Validation ──────
+    section_sheets: Dict[str, SectionFactSheet] = {}
+    all_selected_text_parts: List[str] = []
+
+    for section_name in research_section_names:
+        section_text = sections_raw.get(section_name, "")
+        original_word_count = len(section_text.split())
+        abbrev = _section_abbrev(section_name)
+
+        selected_cands = selected_by_section.get(section_name, [])
+        # Restore original reading order
+        selected_cands.sort(key=lambda c: c["index"])
+
+        extracted: List[ExtractedSentence] = []
+        technical_count = 0
+
+        for c in selected_cands:
+            orig_idx = c["index"]
+            sent_text = c["text"]
+            tr_score = c["textrank_score"]
+            tech_score = c["technical_score"]
+            reason = c.get("selection_reason", "textrank")
+
+            if tech_score >= 0.25:
+                technical_count += 1
+
+            sentence_id = f"{paper_id}-{abbrev}-{orig_idx:02d}"
+            verified = validate_extracted_sentence(sent_text, section_text)
+
+            extracted.append(ExtractedSentence(
+                sentence_id=sentence_id,
+                paper_id=paper_id,
+                section=section_name,
+                text=sent_text,
+                original_index=orig_idx,
+                textrank_score=round(tr_score, 6),
+                technical_score=round(tech_score, 4),
+                selected=True,
+                selection_reason=reason,
+                source_verified=verified,
+            ))
+            all_selected_text_parts.append(sent_text)
+
+        section_sheets[section_name] = SectionFactSheet(
+            section_name=section_name,
+            original_word_count=original_word_count,
+            selected_sentence_count=len(extracted),
+            technical_sentence_count=technical_count,
+            selected_sentences=extracted,
+        )
 
     compressed_text = " ".join(all_selected_text_parts)
 
     # ── Compute metrics ──────────────────────────────────────────────────────
     detected_sections = len(sections_raw)
+    research_sec_count = len(research_section_names)
     covered_sections = sum(
         1 for s in section_sheets.values() if s.selected_sentence_count > 0
     )
+    research_sec_covered = covered_sections
+
     total_selected = sum(s.selected_sentence_count for s in section_sheets.values())
     total_technical = sum(s.technical_sentence_count for s in section_sheets.values())
     total_validated = sum(
@@ -384,19 +508,33 @@ def compress_paper(
         selected_sentences=total_selected,
         technical_sentences=total_technical,
         validated_sentences=total_validated,
+        research_sections=research_sec_count,
+        research_sections_covered=research_sec_covered,
+        non_research_sections_skipped=non_research_count,
     )
 
+    if resolved_coverage == "abstract_only":
+        metrics.compression_status = "not_evaluated"
+
     # ── Log results ──────────────────────────────────────────────────────────
+    if research_sec_count > 0:
+        rs_cov_str = f"{research_sec_covered}/{research_sec_count} = {metrics.research_section_coverage * 100:.0f}%"
+    else:
+        rs_cov_str = "N/A"
+
     print(
         f"[COMPRESSION] {paper_id} results:\n"
-        f"  Original sections : {detected_sections}\n"
-        f"  Covered sections  : {covered_sections}\n"
-        f"  Original tokens   : {metrics.original_token_count:,}\n"
-        f"  Compressed tokens : {metrics.compressed_token_count:,}\n"
-        f"  Compression ratio : {metrics.compression_ratio * 100:.1f}%\n"
-        f"  Selected sentences: {total_selected}\n"
-        f"  Technical sentences: {total_technical}\n"
-        f"  Faithfulness      : {metrics.faithfulness_ratio * 100:.1f}%"
+        f"  Original tokens         : {orig_tokens:,}\n"
+        f"  Target retention        : {config.target_retention_min * 100:.0f}–{config.target_retention_max * 100:.0f}%\n"
+        f"  Preferred retention     : {config.target_retention_default * 100:.0f}%\n"
+        f"  Target tokens           : {min_target_tokens:,}–{max_target_tokens:,}\n"
+        f"  Compressed tokens (est.): {metrics.compressed_token_count:,}\n"
+        f"  Actual retention        : {metrics.retained_ratio * 100:.1f}%\n"
+        f"  Reduction ratio         : {metrics.reduction_ratio * 100:.1f}%\n"
+        f"  Research sec. coverage  : {rs_cov_str}\n"
+        f"  Selected sentences      : {total_selected}\n"
+        f"  Technical sentences     : {total_technical}\n"
+        f"  Faithfulness            : {metrics.faithfulness_ratio * 100:.1f}%"
     )
 
     if metrics.faithfulness_ratio < 1.0:
@@ -423,7 +561,7 @@ def compress_paper(
 # ---------------------------------------------------------------------------
 
 _SECTION_DISPLAY_ORDER = [
-    "abstract", "introduction", "related_work", "problem_definition",
+    "abstract", "introduction", "background", "related_work", "problem_definition",
     "methodology", "dataset", "experiments", "results",
     "discussion", "limitations", "future_work", "conclusion", "unknown",
 ]
@@ -431,6 +569,7 @@ _SECTION_DISPLAY_ORDER = [
 _SECTION_DISPLAY_LABELS = {
     "abstract": "ABSTRACT",
     "introduction": "INTRODUCTION",
+    "background": "BACKGROUND",
     "related_work": "RELATED WORK",
     "problem_definition": "PROBLEM DEFINITION",
     "methodology": "METHODOLOGY",
@@ -473,14 +612,30 @@ def format_fact_sheet(fact_sheet: PaperFactSheet) -> str:
     m = fact_sheet.metrics
     lines.append("")
     lines.append("COMPRESSION METRICS")
-    lines.append(f"  Original tokens (est.)   : {m.original_token_count:,}")
-    lines.append(f"  Compressed tokens (est.) : {m.compressed_token_count:,}")
-    lines.append(f"  Compression ratio        : {m.compression_ratio * 100:.1f}%")
-    lines.append(f"  Section coverage         : {m.covered_sections}/{m.detected_sections} sections")
-    lines.append(f"  Selected sentences       : {m.selected_sentence_count}")
-    lines.append(f"  Technical sentences      : {m.technical_sentence_count}")
-    lines.append(f"  Faithfulness             : {m.faithfulness_ratio * 100:.1f}%")
-    lines.append(f"  Token count method       : {m.token_count_method}")
+    lines.append(f"  Original tokens (est.)          : {m.original_token_count:,}")
+    lines.append(f"  Compressed tokens (est.)        : {m.compressed_token_count:,}")
+    # Display N/A for abstract-only papers where the compression ratio is not meaningful
+    if m.compression_status == "abstract_only_not_evaluated":
+        lines.append(f"  Compression ratio               : N/A (abstract only — not evaluated)")
+    else:
+        lines.append(f"  Compression ratio               : {m.compression_ratio * 100:.1f}%")
+    # Show research-section-aware coverage (correct metric)
+    if m.research_sections > 0:
+        lines.append(
+            f"  Detected sections               : {m.detected_sections} "
+            f"(research: {m.research_sections}, skipped non-research: {m.non_research_sections_skipped})"
+        )
+        lines.append(
+            f"  Research section coverage       : "
+            f"{m.research_sections_covered}/{m.research_sections} sections "
+            f"= {m.research_section_coverage * 100:.0f}%"
+        )
+    else:
+        lines.append(f"  Section coverage                : {m.covered_sections}/{m.detected_sections} sections")
+    lines.append(f"  Selected sentences              : {m.selected_sentence_count}")
+    lines.append(f"  Technical sentences             : {m.technical_sentence_count}")
+    lines.append(f"  Faithfulness                    : {m.faithfulness_ratio * 100:.1f}%")
+    lines.append(f"  Token count method              : {m.token_count_method} (NOT exact Gemini token count)")
     lines.append("")
     # Coverage type badge
     coverage = getattr(fact_sheet, 'coverage_type', 'unavailable')

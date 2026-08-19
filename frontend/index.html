@@ -367,9 +367,9 @@
                 Semantic Scholar · Crossref · OpenAlex · Europe PMC · DOAJ), identify critical research gaps, and scan
                 patents.</p>
             <div class="search-bar-wrapper">
-                <input type="text" id="topic-query" class="search-input"
+            <input type="text" id="topic-query" class="search-input"
                     placeholder="Enter your research topic... (e.g. Federated Learning Medical Imaging)">
-                <button onclick="startPipeline()" class="search-btn">🚀 Start Analysis</button>
+                <button id="start-btn" onclick="startPipeline()" class="search-btn">🚀 Start Analysis</button>
             </div>
         </div>
 
@@ -470,6 +470,22 @@
 
     <script>
         let reportData = null;
+        // ── Pipeline request lock ──────────────────────────────────────────
+        // Prevents the user from triggering multiple concurrent pipeline runs
+        // (e.g., via double-click or pressing Enter while pipeline is running).
+        let pipelineRunning = false;
+
+        // Allow Enter key on the input to trigger startPipeline()
+        document.addEventListener('DOMContentLoaded', function () {
+            const input = document.getElementById('topic-query');
+            if (input) {
+                input.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter') {
+                        startPipeline();
+                    }
+                });
+            }
+        });
 
         function switchTab(tabName) {
             // Remove active class from buttons & contents
@@ -482,9 +498,32 @@
         }
 
         async function startPipeline() {
+            // ── Request lock: abort if already running ──────────────────────
+            if (pipelineRunning) {
+                console.warn('[ResearchIQ] Pipeline already running — ignoring duplicate trigger.');
+                return;
+            }
+            pipelineRunning = true;
+
+            // Disable button to give visual feedback and prevent further clicks
+            const startBtn = document.getElementById('start-btn');
+            if (startBtn) {
+                startBtn.disabled = true;
+                startBtn.textContent = '⏳ Running...';
+                startBtn.style.opacity = '0.6';
+                startBtn.style.cursor = 'not-allowed';
+            }
+
             const query = document.getElementById('topic-query').value.trim();
             if (!query) {
                 alert('Please enter a research topic first.');
+                pipelineRunning = false;
+                if (startBtn) {
+                    startBtn.disabled = false;
+                    startBtn.textContent = '🚀 Start Analysis';
+                    startBtn.style.opacity = '';
+                    startBtn.style.cursor = '';
+                }
                 return;
             }
 
@@ -543,7 +582,21 @@
 
             } catch (err) {
                 console.error(err);
-                message.innerText = "Error encountered during execution. Please check your Gemini API key configurations.";
+                const errMsg = err.message || '';
+                if (errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('resource_exhausted')) {
+                    message.innerText = "⚠️ Gemini daily quota exhausted. The pipeline stopped early. Patent data (if retrieved) was preserved. Please try again tomorrow or use a different API key.";
+                } else {
+                    message.innerText = "❌ Error during pipeline execution. Check backend logs and verify your GEMINI_API_KEY.";
+                }
+            } finally {
+                // ── Release request lock and re-enable button ──────────────
+                pipelineRunning = false;
+                if (startBtn) {
+                    startBtn.disabled = false;
+                    startBtn.textContent = '🚀 Start Analysis';
+                    startBtn.style.opacity = '';
+                    startBtn.style.cursor = '';
+                }
             }
         }
 

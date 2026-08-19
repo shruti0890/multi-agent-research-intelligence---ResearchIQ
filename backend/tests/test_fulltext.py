@@ -389,7 +389,11 @@ class TestAbstractOnlyFallback:
         """
         paper = _make_paper(
             full_text="",
-            abstract="We propose a novel approach for graph-based learning using attention mechanisms.",
+            abstract=(
+                "We propose a novel approach for graph-based learning using attention mechanisms. "
+                "Our method demonstrates significant improvements over baseline approaches on "
+                "standard benchmark datasets, achieving competitive performance with less computation."
+            ),
             coverage_type="unavailable",
         )
         fs = compress_paper(paper, query="graph learning", paper_id="AO001")
@@ -604,7 +608,11 @@ class TestFullTextMetadata:
         paper = {
             "title": "Abstract Only Test",
             "url": "https://example.com/abstract-only",
-            "abstract": "This paper presents a novel approach with strong results.",
+            "abstract": (
+                "This paper presents a novel approach with strong experimental results. "
+                "We evaluate the method on three benchmark datasets and demonstrate "
+                "consistent improvements across all evaluation metrics and experimental conditions."
+            ),
             "open_access_pdf_url": "",
             "oa_url": "",
             "doi": "",

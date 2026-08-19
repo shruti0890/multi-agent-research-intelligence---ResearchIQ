@@ -101,6 +101,52 @@ _p(r'\b(scalab(le|ility)|generaliz(e|ation|ability)|transfer)\b', 0.4)
 _p(r'\b(failure\s+(case|mode)|weakness|shortcoming)\b', 0.4)
 
 
+# ── General statistics (domain-agnostic) ────────────────────────────────────
+_p(r'\bp\s*[<=>≤≥]\s*0\.\d+', 0.7)                # p < 0.05, p = 0.001
+_p(r'\bp[_\s-]?value', 0.6)                        # p-value, p value
+_p(r'\b(confidence\s+interval|CI)\b', 0.6)
+_p(r'\b(mean\s*[±\+\-]\s*SD|mean\s*[±\+\-]\s*SE)\b', 0.6)
+_p(r'\b(standard\s+deviation|standard\s+error|SD|SE)\b', 0.4)
+_p(r'\b(odds\s+ratio|hazard\s+ratio|relative\s+risk|risk\s+ratio)\b', 0.6)
+_p(r'\b(r\s*=\s*[\d\.]+|r\s*²|r-squared|pearson|spearman)\b', 0.6)
+_p(r'\b(regression|correlation|coefficient|beta\s+coefficient)\b', 0.4)
+_p(r'\b(ANOVA|ANCOVA|t-test|chi-?square|Mann.?Whitney|Kruskal.?Wallis)\b', 0.6)
+_p(r'\b(statistical(ly)?\s+significant|significance|non-significant)\b', 0.5)
+_p(r'\b(sample\s+size|n\s*=\s*\d+|N\s*=\s*\d+)\b', 0.5)
+_p(r'\b(effect\s+size|Cohen.?s\s+d|eta.?squared|omega.?squared)\b', 0.6)
+
+# ── Ecology / Biology / Environmental science ────────────────────────────────
+_p(r'\b(species\s+richness|biodiversity|alpha\s+diversity|beta\s+diversity)\b', 0.6)
+_p(r'\b(Shannon|Simpson|Chao|rarefaction|species\s+abundance)\b', 0.6)
+_p(r'\b(habitat|ecosystem|biome|ecotone|niche|trophic)\b', 0.4)
+_p(r'\b(biomass|abundance|density|cover|canopy)\b', 0.4)
+_p(r'\b(population\s+(size|growth|decline)|demographic)\b', 0.5)
+_p(r'\b(community\s+(composition|structure)|assemblage)\b', 0.5)
+_p(r'\b(functional\s+(trait|diversity|group))\b', 0.5)
+_p(r'\b(invasive\s+species|native\s+species|endemic|threatened|endangered)\b', 0.5)
+_p(r'\b(climate\s+change|temperature|precipitation|drought|flood)\b', 0.4)
+_p(r'\b(carbon\s+(stock|sequestration|flux)|nitrogen|nutrient\s+cycle)\b', 0.5)
+_p(r'\b(plot|transect|quadrat|survey\s+site|sampling\s+(unit|plot|area))\b', 0.4)
+_p(r'\b(land\s+(use|cover)|deforestation|fragmentation|corridor)\b', 0.4)
+_p(r'\b(pollinator|seed\s+dispersal|predator|prey|herbivory)\b', 0.4)
+_p(r'\b(phylogenetic|evolutionary|divergence|speciation)\b', 0.5)
+
+# ── Medical / Clinical (supplements AI patterns for biomedical papers) ───────
+_p(r'\b(mortality|morbidity|incidence|prevalence|risk\s+factor)\b', 0.5)
+_p(r'\b(clinical\s+trial|randomized|placebo|double.blind)\b', 0.6)
+_p(r'\b(sensitivity|specificity|positive\s+predictive|negative\s+predictive)\b', 0.6)
+_p(r'\b(dosage|dose|mg\s*/\s*kg|mg\s*/\s*day|pharmacokinetic)\b', 0.5)
+_p(r'\b(biomarker|gene\s+expression|protein\s+level|sequencing)\b', 0.5)
+_p(r'\b(survival\s+(rate|analysis|curve)|Kaplan.?Meier)\b', 0.6)
+
+# ── Physics / Chemistry / Engineering ────────────────────────────────────────
+_p(r'\b(wavelength|frequency|amplitude|resonance|impedance)\b', 0.4)
+_p(r'\b(temperature|pressure|viscosity|density|conductivity)\b', 0.4)
+_p(r'\b(yield|purity|conversion|selectivity|efficiency)\b', 0.4)
+_p(r'\b(tensile\s+strength|Young.s\s+modulus|hardness|elasticity)\b', 0.5)
+
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------

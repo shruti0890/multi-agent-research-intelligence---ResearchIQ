@@ -51,10 +51,16 @@ def measure_compression(
     selected_sentences: int = 0,
     technical_sentences: int = 0,
     validated_sentences: int = 0,
+    research_sections: int = 0,
+    research_sections_covered: int = 0,
+    non_research_sections_skipped: int = 0,
 ) -> CompressionMetrics:
     """
     Compute quantitative compression metrics.
     compression_ratio = 1 - (compressed_tokens / original_tokens)
+
+    research_section_coverage is the canonical metric; it uses only the research-content
+    sections in the denominator, excluding intentionally-skipped non-research sections.
     """
     orig_words = count_words(original_text)
     comp_words = count_words(compressed_text)
@@ -62,15 +68,28 @@ def measure_compression(
     comp_tokens = estimate_tokens(compressed_text)
 
     if orig_tokens > 0:
-        ratio = 1.0 - (comp_tokens / orig_tokens)
-        ratio = max(0.0, min(1.0, round(ratio, 4)))
+        ret_ratio = max(0.0, min(1.0, round(comp_tokens / orig_tokens, 4)))
+        red_ratio = max(0.0, min(1.0, round(1.0 - ret_ratio, 4)))
+        ratio = red_ratio
     else:
+        ret_ratio = 0.0
+        red_ratio = 0.0
         ratio = 0.0
 
+    # Legacy section_coverage (includes all detected sections in denominator)
     if detected_sections > 0:
         coverage = round(covered_sections / detected_sections, 4)
     else:
         coverage = 0.0
+
+    # Correct research_section_coverage (excludes non-research from denominator)
+    if research_sections > 0:
+        r_coverage = round(research_sections_covered / research_sections, 4)
+    elif detected_sections > 0:
+        # Fallback: if research_sections not provided, use detected (same as legacy)
+        r_coverage = coverage
+    else:
+        r_coverage = 0.0
 
     if selected_sentences > 0:
         faithfulness = round(validated_sentences / selected_sentences, 4)
@@ -83,9 +102,15 @@ def measure_compression(
         original_token_count=orig_tokens,
         compressed_token_count=comp_tokens,
         compression_ratio=ratio,
+        retained_ratio=ret_ratio,
+        reduction_ratio=red_ratio,
         section_coverage=coverage,
         detected_sections=detected_sections,
         covered_sections=covered_sections,
+        research_sections=research_sections,
+        research_sections_covered=research_sections_covered,
+        research_section_coverage=r_coverage,
+        non_research_sections_skipped=non_research_sections_skipped,
         selected_sentence_count=selected_sentences,
         technical_sentence_count=technical_sentences,
         total_validated_sentences=validated_sentences,
@@ -94,13 +119,32 @@ def measure_compression(
     )
 
 
+def _normalize_whitespace(text: str) -> str:
+    """Collapse all whitespace runs (spaces, tabs, newlines) to a single space."""
+    import re
+    return re.sub(r'\s+', ' ', text).strip()
+
+
 def validate_extracted_sentence(extracted_sentence: str, original_text: str) -> bool:
     """
     Verify that `extracted_sentence` appears verbatim in `original_text`.
-    Strips leading/trailing whitespace before comparison.
+
+    Primary check: exact substring match (strips leading/trailing whitespace only).
+    Secondary check: whitespace-normalized comparison — catches harmless PDF/NLTK
+    formatting differences (e.g., double spaces, soft hyphens, line-break spaces)
+    WITHOUT accepting actual paraphrasing or changed words.
+
     Returns True if found, False if not (indicates a faithfulness violation).
     """
     s = extracted_sentence.strip()
     if not s:
         return False
-    return s in original_text
+    # Primary: exact verbatim match
+    if s in original_text:
+        return True
+    # Secondary: whitespace-normalized match
+    # This accepts whitespace differences ONLY — word content must be identical
+    s_norm = _normalize_whitespace(s)
+    orig_norm = _normalize_whitespace(original_text)
+    return s_norm in orig_norm
+

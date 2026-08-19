@@ -11,9 +11,17 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
 # ---------------------------------------------------------------------------
-# Configurable sentence budgets per section
-# These are the DEFAULTS — they can be overridden at runtime.
+# Target compression parameters (65–75% RETENTION, 25–35% REDUCTION, preferred 70% retention)
 # ---------------------------------------------------------------------------
+
+TARGET_RETENTION_MIN: float = 0.65      #: 65% retained (35% reduction)
+TARGET_RETENTION_MAX: float = 0.75      #: 75% retained (25% reduction)
+TARGET_RETENTION_DEFAULT: float = 0.70  #: 70% retained (30% reduction)
+
+# Legacy aliases for reduction ratio
+TARGET_COMPRESSION_MIN: float = 0.25    #: 25% reduction (75% retained)
+TARGET_COMPRESSION_MAX: float = 0.35    #: 35% reduction (65% retained)
+
 
 class SectionBudget(BaseModel):
     """Min and max sentence count for a given section."""
@@ -23,25 +31,84 @@ class SectionBudget(BaseModel):
 
 class CompressionConfig(BaseModel):
     """
-    Configurable sentence budgets per normalized section name.
+    Configurable sentence budgets and targets per normalized section name.
     Override at runtime for experiment A/B/C configurations.
     """
-    # Per-section budgets
+    # Target retention range (0.65–0.75 = 65–75% RETENTION, 25–35% REDUCTION)
+    target_retention_min: float = Field(
+        default=0.65,
+        description="Minimum target content retention fraction (0.65 = 65% retained, 35% reduction)"
+    )
+    target_retention_max: float = Field(
+        default=0.75,
+        description="Maximum target content retention fraction (0.75 = 75% retained, 25% reduction)"
+    )
+    target_retention_default: float = Field(
+        default=0.70,
+        description="Preferred default content retention fraction (0.70 = 70% retained, 30% reduction)"
+    )
+    target_retention_ratio: float = Field(
+        default=0.70,
+        description="Target content retention fraction (0.70 = 70% retained, 30% reduction)"
+    )
+
+    # Legacy reduction ratio aliases
+    target_compression_min: float = Field(
+        default=0.25,
+        description="Minimum target compression reduction ratio (0.25 = 25% reduction, 75% retained)"
+    )
+    target_compression_max: float = Field(
+        default=0.35,
+        description="Maximum target compression reduction ratio (0.35 = 35% reduction, 65% retained)"
+    )
+
+    # Minimum retention safeguards for large papers (always maintain at least 65% retention)
+    min_retention_5k: float = Field(
+        default=0.65,
+        description="Minimum retained fraction for papers > 5,000 tokens (e.g. 0.65 = 65% retained)"
+    )
+    min_retention_20k: float = Field(
+        default=0.65,
+        description="Minimum retained fraction for papers > 20,000 tokens (e.g. 0.65 = 65% retained)"
+    )
+
+    # Section priority weights for dynamic budget allocation
+    section_priority_weights: Dict[str, float] = Field(
+        default_factory=lambda: {
+            "abstract": 1.0,
+            "introduction": 1.0,
+            "background": 0.9,
+            "related_work": 0.8,
+            "problem_definition": 0.9,
+            "methodology": 1.3,
+            "dataset": 1.1,
+            "experiments": 1.2,
+            "results": 1.3,
+            "discussion": 1.0,
+            "limitations": 1.1,
+            "future_work": 0.8,
+            "conclusion": 0.9,
+            "unknown": 0.9,
+        }
+    )
+
+    # Per-section baseline budgets (minimums and fallback maximums)
     budgets: Dict[str, SectionBudget] = Field(
         default_factory=lambda: {
-            "abstract":          SectionBudget(min_sentences=1, max_sentences=3),
-            "introduction":      SectionBudget(min_sentences=2, max_sentences=5),
-            "related_work":      SectionBudget(min_sentences=2, max_sentences=5),
-            "problem_definition": SectionBudget(min_sentences=1, max_sentences=4),
-            "methodology":       SectionBudget(min_sentences=3, max_sentences=8),
-            "dataset":           SectionBudget(min_sentences=1, max_sentences=4),
-            "experiments":       SectionBudget(min_sentences=2, max_sentences=6),
-            "results":           SectionBudget(min_sentences=2, max_sentences=8),
-            "discussion":        SectionBudget(min_sentences=2, max_sentences=5),
-            "limitations":       SectionBudget(min_sentences=1, max_sentences=5),
-            "future_work":       SectionBudget(min_sentences=1, max_sentences=4),
-            "conclusion":        SectionBudget(min_sentences=1, max_sentences=4),
-            "unknown":           SectionBudget(min_sentences=2, max_sentences=6),
+            "abstract":          SectionBudget(min_sentences=1, max_sentences=50),
+            "introduction":      SectionBudget(min_sentences=2, max_sentences=1000),
+            "background":        SectionBudget(min_sentences=2, max_sentences=1000),
+            "related_work":      SectionBudget(min_sentences=2, max_sentences=1000),
+            "problem_definition": SectionBudget(min_sentences=1, max_sentences=1000),
+            "methodology":       SectionBudget(min_sentences=3, max_sentences=2000),
+            "dataset":           SectionBudget(min_sentences=1, max_sentences=1000),
+            "experiments":       SectionBudget(min_sentences=2, max_sentences=2000),
+            "results":           SectionBudget(min_sentences=2, max_sentences=2000),
+            "discussion":        SectionBudget(min_sentences=2, max_sentences=1000),
+            "limitations":       SectionBudget(min_sentences=1, max_sentences=1000),
+            "future_work":       SectionBudget(min_sentences=1, max_sentences=1000),
+            "conclusion":        SectionBudget(min_sentences=1, max_sentences=1000),
+            "unknown":           SectionBudget(min_sentences=2, max_sentences=2000),
         }
     )
 
@@ -130,12 +197,43 @@ class CompressionMetrics(BaseModel):
         default=0.0,
         description="1 - (compressed_tokens / original_tokens). Measured value."
     )
+    # Legacy: total detected sections (includes non-research sections in denominator).
+    # Kept for backward compatibility. Use research_section_coverage instead.
     section_coverage: float = Field(
         default=0.0,
-        description="Fraction of detected sections that have at least 1 selected sentence"
+        description="Fraction of all detected sections that have at least 1 selected sentence (legacy)"
     )
     detected_sections: int = 0
     covered_sections: int = 0
+
+    # Research-section-aware coverage (correct metric — excludes skipped non-research sections)
+    research_sections: int = Field(
+        default=0,
+        description="Count of sections containing research content (excludes references/acks/supplementary)"
+    )
+    research_sections_covered: int = Field(
+        default=0,
+        description="Count of research sections that have at least 1 selected sentence"
+    )
+    research_section_coverage: float = Field(
+        default=0.0,
+        description="research_sections_covered / research_sections — the correct coverage metric"
+    )
+    non_research_sections_skipped: int = Field(
+        default=0,
+        description="Count of sections intentionally skipped (references, acknowledgments, supplementary)"
+    )
+
+    # Retained and Reduction ratios (Target: 65–75% retention, 25–35% reduction, preferred 70% retention)
+    retained_ratio: float = Field(
+        default=0.0,
+        description="compressed_token_count / original_token_count. Target: 0.65 - 0.75 (65% - 75% retained, preferred ~70%)."
+    )
+    reduction_ratio: float = Field(
+        default=0.0,
+        description="1.0 - retained_ratio. Target: 0.25 - 0.35 (25% - 35% reduction, preferred ~30%)."
+    )
+
     selected_sentence_count: int = 0
     technical_sentence_count: int = 0
     total_validated_sentences: int = 0
@@ -146,6 +244,11 @@ class CompressionMetrics(BaseModel):
     token_count_method: str = Field(
         default="estimated_word_split",
         description="Token counting method: 'estimated_word_split' = heuristic (words × 1.15). NOT an exact Gemini token count."
+    )
+    # Compression evaluation status — abstract-only papers cannot be meaningfully evaluated
+    compression_status: str = Field(
+        default="evaluated",
+        description="'evaluated' | 'not_evaluated' | 'abstract_only_not_evaluated' — abstract-only papers produce unreliable compression ratios"
     )
 
 
@@ -172,6 +275,13 @@ class PaperFactSheet(BaseModel):
 
     # Metrics
     metrics: CompressionMetrics = Field(default_factory=CompressionMetrics)
+
+    def all_sentences(self) -> List[ExtractedSentence]:
+        """Returns all selected sentences across all sections."""
+        res: List[ExtractedSentence] = []
+        for sec in self.sections.values():
+            res.extend(sec.selected_sentences)
+        return res
 
     def to_text(self) -> str:
         """

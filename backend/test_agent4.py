@@ -34,7 +34,8 @@ if __name__ == "__main__":
     
     # 5. Agent 4 Compile PDF
     print("\n[4/4] Running Agent 4: PDF Report Compilation...")
-    pdf_path = compile_final_report(state, output_dir=".")
+    pdf_path, compiler_status = compile_final_report(state, output_dir=".")
+
     
     print(f"\n=== SUCCESS ===")
     print(f"Final PDF generated at: {pdf_path}")
