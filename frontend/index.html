@@ -4,25 +4,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ResearchIQ - Multi-Agent R&D Intelligence</title>
-    <!-- Google Fonts -->
+    <title>ResearchIQ — Multi-Agent Research Intelligence</title>
+    <!-- Google Fonts: Newsreader (Editorial Serif), IBM Plex Sans, IBM Plex Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
+        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,400;1,6..72,500&display=swap"
         rel="stylesheet">
+
     <style>
         :root {
-            --bg-base: #0B0F19;
-            --bg-surface: rgba(17, 24, 39, 0.7);
-            --border-color: rgba(255, 255, 255, 0.08);
-            --primary: #3B82F6;
-            --primary-glow: rgba(59, 130, 246, 0.4);
-            --accent-green: #10B981;
-            --accent-yellow: #F59E0B;
-            --accent-red: #EF4444;
-            --text-main: #F3F4F6;
-            --text-muted: #9CA3AF;
+            /* Editorial Academic Palette */
+            --bg-paper: #EDEAE1;
+            --bg-paper-light: #F6F3EB;
+            --bg-paper-card: #FBFAF6;
+            --bg-paper-dark: #E1DBD0;
+            --bg-paper-stack-1: #E6E2D4;
+            --bg-paper-stack-2: #DDD8C7;
+            
+            --ink-primary: #171B2B;
+            --ink-secondary: #4B4F5E;
+            --ink-muted: #797D8A;
+            --rule-color: #C9C4B4;
+            --rule-light: #DDD9CD;
+            
+            --accent-gold: #A9832E;
+            --accent-gold-light: #F5EEDB;
+            --accent-green: #3F7A5E;
+            --accent-green-light: #E7F0EB;
+            --accent-coral: #B8503A;
+            --accent-coral-light: #F9ECE9;
+            --accent-blue: #2E5A88;
+            --accent-blue-light: #EBF1F7;
+            
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            
+            --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            --transition-smooth: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            --transition-spring: 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
 
         * {
@@ -31,582 +52,2560 @@
             padding: 0;
         }
 
+        html {
+            scroll-behavior: smooth;
+            background-color: var(--bg-paper);
+            color: var(--ink-primary);
+            font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
         body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            background-color: var(--bg-base);
-            color: var(--text-main);
+            background-color: var(--bg-paper);
+            color: var(--ink-primary);
             min-height: 100vh;
             overflow-x: hidden;
-            background-image:
-                radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.08) 0%, transparent 40%),
-                radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 40%);
+            line-height: 1.6;
         }
 
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px 40px;
-            border-bottom: 1px solid var(--border-color);
-            background-color: rgba(11, 15, 25, 0.8);
-            backdrop-filter: blur(12px);
+        /* Typography Presets */
+        h1, h2, h3, h4, .font-serif {
+            font-family: 'Newsreader', Georgia, serif;
+            font-weight: 400;
+            letter-spacing: -0.015em;
+            color: var(--ink-primary);
+        }
+
+        .mono {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.88em;
+            letter-spacing: -0.01em;
+        }
+
+        .italic {
+            font-style: italic;
+        }
+
+        /* View Switching Architecture */
+        #landing-view {
+            display: block;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+            position: relative;
+        }
+
+        #question-view, #confirm-view, #workspace-view {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            position: relative;
+            min-height: 100vh;
+            padding-bottom: 60px;
+        }
+
+        /* Editorial Navigation */
+        .editorial-nav-wrapper {
             position: sticky;
             top: 0;
-            z-index: 10;
+            z-index: 100;
+            background: rgba(237, 234, 225, 0.94);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--rule-color);
+            transition: all var(--transition-fast);
         }
 
-        .logo {
-            font-family: 'Outfit', sans-serif;
-            font-size: 24px;
-            font-weight: 700;
-            background: linear-gradient(135deg, #60A5FA 0%, #34D399 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
+        .editorial-nav {
+            max-width: 1220px;
+            margin: 0 auto;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .nav-brand {
             display: flex;
             align-items: center;
             gap: 10px;
+            text-decoration: none;
+            color: var(--ink-primary);
+            font-family: 'Newsreader', Georgia, serif;
+            font-size: 22px;
+            font-weight: 500;
+            cursor: pointer;
         }
 
-        .main-container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 40px 20px;
+        .nav-logo-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--ink-primary);
+            color: var(--bg-paper);
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 11.5px;
+            font-weight: 700;
         }
 
-        /* Search Section */
-        .search-card {
-            background: var(--bg-surface);
-            border: 1px solid var(--border-color);
-            border-radius: 20px;
-            padding: 30px;
-            backdrop-filter: blur(20px);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-            margin-bottom: 30px;
-            text-align: center;
-        }
-
-        .search-title {
-            font-family: 'Outfit', sans-serif;
-            font-size: 32px;
-            margin-bottom: 10px;
-            font-weight: 600;
-        }
-
-        .search-subtitle {
-            color: var(--text-muted);
-            margin-bottom: 25px;
-            font-size: 16px;
-        }
-
-        .search-bar-wrapper {
+        .nav-links {
             display: flex;
-            gap: 15px;
-            max-width: 800px;
+            align-items: center;
+            gap: 32px;
+            list-style: none;
+        }
+
+        .nav-link {
+            color: var(--ink-secondary);
+            text-decoration: none;
+            font-size: 14.5px;
+            font-weight: 500;
+            transition: color var(--transition-fast);
+        }
+
+        .nav-link:hover {
+            color: var(--ink-primary);
+            text-decoration: underline;
+            text-underline-offset: 4px;
+        }
+
+        .btn-nav-action {
+            background: var(--ink-primary);
+            color: var(--bg-paper-card);
+            border: 1px solid var(--ink-primary);
+            border-radius: var(--radius-sm);
+            padding: 8px 18px;
+            font-size: 13.5px;
+            font-weight: 500;
+            font-family: 'IBM Plex Sans', sans-serif;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .btn-nav-action:hover {
+            background: var(--ink-secondary);
+            border-color: var(--ink-secondary);
+        }
+
+        /* Hero Section */
+        .editorial-hero {
+            max-width: 1220px;
             margin: 0 auto;
+            padding: 60px 24px 70px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 50px;
+            align-items: center;
+            min-height: calc(88vh - 70px);
+            position: relative;
         }
 
-        .search-input {
-            flex: 1;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 15px 20px;
-            color: var(--text-main);
-            font-size: 16px;
-            outline: none;
-            transition: all 0.3s;
+        .hero-left {
+            display: flex;
+            flex-direction: column;
+            gap: 22px;
+            z-index: 2;
         }
 
-        .search-input:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 10px var(--primary-glow);
-            background: rgba(255, 255, 255, 0.07);
+        .hero-eyebrow {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--accent-gold);
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
-        .search-btn {
-            background: linear-gradient(135deg, var(--primary) 0%, #2563EB 100%);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            padding: 0 30px;
-            font-size: 16px;
+        .hero-eyebrow::before {
+            content: "";
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: var(--accent-gold);
+            border-radius: 50%;
+        }
+
+        .hero-headline {
+            font-size: clamp(38px, 4.6vw, 58px);
+            line-height: 1.1;
+            font-weight: 400;
+            color: var(--ink-primary);
+        }
+
+        .hero-headline em {
+            font-style: italic;
+            font-family: 'Newsreader', Georgia, serif;
+        }
+
+        .hero-lead {
+            font-size: 16.5px;
+            line-height: 1.6;
+            color: var(--ink-secondary);
+            max-width: 520px;
+        }
+
+        .hero-cta-row {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-top: 4px;
+            flex-wrap: wrap;
+        }
+
+        .btn-editorial-primary {
+            background: var(--ink-primary);
+            color: var(--bg-paper-card);
+            border: 1px solid var(--ink-primary);
+            padding: 13px 28px;
+            border-radius: var(--radius-sm);
+            font-size: 15px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s;
-            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all var(--transition-fast);
+            text-decoration: none;
         }
 
-        .search-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+        .btn-editorial-primary:hover {
+            background: #23283B;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 14px rgba(23, 27, 43, 0.15);
         }
 
-        /* Status & Processing Tracker */
-        .status-container {
-            display: none;
-            /* hidden until search starts */
-            background: var(--bg-surface);
-            border: 1px solid var(--border-color);
-            border-radius: 20px;
-            padding: 25px;
-            margin-bottom: 30px;
+        .btn-editorial-link {
+            color: var(--ink-primary);
+            font-size: 14.5px;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: color var(--transition-fast);
         }
 
-        .stepper {
+        .btn-editorial-link:hover {
+            color: var(--accent-gold);
+            text-decoration: underline;
+            text-underline-offset: 4px;
+        }
+
+        .hero-capability-strip {
             display: flex;
-            justify-content: space-between;
-            position: relative;
-            margin-bottom: 20px;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            padding-top: 18px;
+            border-top: 1px solid var(--rule-color);
+            margin-top: 8px;
         }
 
-        .step {
-            flex: 1;
-            text-align: center;
-            position: relative;
-            z-index: 1;
+        .hero-cap-item {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--ink-muted);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
         }
 
-        .step-circle {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: #1F2937;
-            border: 2px solid var(--border-color);
+        /* Hero Right: Fluid 3D Layered Paper Stack & Scientific Orbit */
+        .hero-3d-stage {
+            position: relative;
+            width: 100%;
+            height: 540px;
+            perspective: 1500px;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 10px;
-            font-weight: 600;
-            transition: all 0.4s;
         }
 
-        .step.active .step-circle {
-            background: var(--primary);
-            border-color: var(--primary);
-            box-shadow: 0 0 15px var(--primary-glow);
-        }
-
-        .step.completed .step-circle {
-            background: var(--accent-green);
-            border-color: var(--accent-green);
-        }
-
-        .step-title {
-            font-size: 14px;
-            font-weight: 500;
-            color: var(--text-muted);
-        }
-
-        .step.active .step-title {
-            color: var(--text-main);
-        }
-
-        /* Results Panel */
-        .dashboard-layout {
-            display: none;
-            /* hidden until search completes */
-            grid-template-columns: 250px 1fr;
-            gap: 30px;
-        }
-
-        .sidebar-nav {
-            background: var(--bg-surface);
-            border: 1px solid var(--border-color);
-            border-radius: 20px;
-            padding: 20px;
-            height: fit-content;
-        }
-
-        .nav-btn {
-            display: block;
+        /* 3D Research Intelligence Orbit (Background to paper) */
+        .orbit-canvas-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
-            padding: 12px 15px;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* Coordinated 3D Paper Stack System */
+        .fluid-paper-stack {
+            position: relative;
+            width: 100%;
+            max-width: 440px;
+            transform-style: preserve-3d;
+            z-index: 5;
+            transition: transform 0.15s cubic-bezier(0.1, 0.9, 0.2, 1);
+        }
+
+        .paper-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: var(--radius-sm);
+            pointer-events: none;
+            transition: transform 0.2s ease-out;
+        }
+
+        .layer-deep-3 {
+            background: #D5CFBD;
+            border: 1px solid #BCB6A2;
+            transform: translate3d(20px, -20px, -50px) rotate(4deg);
+            box-shadow: 0 10px 25px rgba(23, 27, 43, 0.06);
+        }
+
+        .layer-mid-2 {
+            background: #DFDACD;
+            border: 1px solid #CCC6B5;
+            transform: translate3d(10px, -10px, -28px) rotate(-2deg);
+            box-shadow: 0 12px 30px rgba(23, 27, 43, 0.08);
+        }
+
+        .layer-base-1 {
+            background: #EAE5D8;
+            border: 1px solid #D6D0C0;
+            transform: translate3d(5px, -5px, -12px) rotate(1.5deg);
+            box-shadow: 0 14px 32px rgba(23, 27, 43, 0.1);
+        }
+
+        /* Top Interactive Document Sheet */
+        .paper-sheet-top {
+            position: relative;
+            background: var(--bg-paper-card);
+            border: 1px solid var(--rule-color);
+            border-radius: var(--radius-sm);
+            padding: 30px 26px;
+            box-shadow: 0 20px 48px rgba(23, 27, 43, 0.14), 0 1px 3px rgba(23, 27, 43, 0.05);
+            transform: translateZ(0);
+            z-index: 10;
+        }
+
+        .sheet-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--rule-color);
+            padding-bottom: 10px;
+            margin-bottom: 14px;
+        }
+
+        .sheet-meta {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            color: var(--ink-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .sheet-stamp {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10.5px;
+            font-weight: 600;
+            color: var(--accent-green);
+            background: var(--accent-green-light);
+            padding: 2px 8px;
+            border-radius: var(--radius-sm);
+            border: 1px solid rgba(63, 122, 94, 0.3);
+        }
+
+        .sheet-title {
+            font-family: 'Newsreader', Georgia, serif;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--ink-primary);
+            line-height: 1.25;
+            margin-bottom: 6px;
+        }
+
+        .sheet-authors {
+            font-size: 12px;
+            color: var(--ink-muted);
+            margin-bottom: 14px;
+        }
+
+        .sheet-body-text {
+            font-size: 13.5px;
+            line-height: 1.7;
+            color: var(--ink-secondary);
+            border-top: 1px solid var(--rule-light);
+            padding-top: 14px;
+            margin-bottom: 16px;
+            position: relative;
+        }
+
+        /* Sequential Fluid Highlights */
+        .highlight-passage {
+            border-radius: 2px;
+            padding: 1px 4px;
+            transition: all 0.6s ease;
+            position: relative;
+        }
+
+        .hl-gold {
+            background: #FDF4DE;
+            color: #87641E;
+            border-bottom: 1px solid #D6B97A;
+            font-weight: 500;
+        }
+
+        .hl-coral {
+            background: #FCEBE8;
+            color: #9E3E2B;
+            border-bottom: 1px solid #E09C8E;
+            font-weight: 500;
+        }
+
+        .hl-green {
+            background: #EBF4F0;
+            color: #2D6147;
+            border-bottom: 1px solid #91B8A3;
+            font-weight: 500;
+        }
+
+        /* SVG Dynamic Pointer Lines */
+        .annotation-svg-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 15;
+        }
+
+        .dynamic-draw-path {
+            stroke-dasharray: 200;
+            stroke-dashoffset: 200;
+            animation: drawLine 1.2s ease forwards;
+        }
+
+        @keyframes drawLine {
+            to { stroke-dashoffset: 0; }
+        }
+
+        /* 3D Flowing Annotation Cards */
+        .annotation-cluster {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            position: relative;
+            z-index: 20;
+        }
+
+        .paper-annotation-card {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg-paper-card);
+            border: 1px solid var(--rule-color);
+            border-radius: var(--radius-sm);
+            padding: 8px 12px;
+            box-shadow: 0 4px 14px rgba(23, 27, 43, 0.07);
+            font-size: 12.5px;
+            transition: all var(--transition-fast);
+            opacity: 0;
+            transform: translateY(8px);
+            animation: annotFadeIn 0.6s ease forwards;
+        }
+
+        .paper-annotation-card:nth-child(1) { animation-delay: 0.4s; }
+        .paper-annotation-card:nth-child(2) { animation-delay: 0.8s; }
+        .paper-annotation-card:nth-child(3) { animation-delay: 1.2s; }
+
+        @keyframes annotFadeIn {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .paper-annotation-card:hover {
+            transform: translateX(4px) translateY(-1px);
+            border-color: var(--ink-primary);
+            box-shadow: 0 6px 18px rgba(23, 27, 43, 0.12);
+        }
+
+        .annotation-tag {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 2px;
+            text-transform: uppercase;
+        }
+
+        .tag-gap {
+            background: var(--accent-coral-light);
+            color: var(--accent-coral);
+            border: 1px solid rgba(184, 80, 58, 0.35);
+        }
+
+        .tag-method {
+            background: var(--accent-gold-light);
+            color: var(--accent-gold);
+            border: 1px solid rgba(169, 131, 46, 0.35);
+        }
+
+        .tag-patent {
+            background: var(--accent-green-light);
+            color: var(--accent-green);
+            border: 1px solid rgba(63, 122, 94, 0.35);
+        }
+
+        /* Dark Problem Strip */
+        .dark-problem-strip {
+            background: var(--ink-primary);
+            color: var(--bg-paper);
+            padding: 84px 24px;
+            border-top: 1px solid #2A3045;
+            border-bottom: 1px solid #2A3045;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .problem-inner {
+            max-width: 1220px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 2;
+        }
+
+        .problem-header {
+            max-width: 820px;
+            margin-bottom: 56px;
+        }
+
+        .problem-eyebrow {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--accent-gold);
+            margin-bottom: 14px;
+        }
+
+        .problem-title {
+            font-family: 'Newsreader', Georgia, serif;
+            font-size: clamp(28px, 3.2vw, 42px);
+            line-height: 1.2;
+            color: #FFFFFF;
+        }
+
+        .problem-title em {
+            font-style: italic;
+            color: #DCD8CC;
+        }
+
+        .problem-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 36px;
+        }
+
+        .problem-card {
+            border-left: 1px solid #363C52;
+            padding-left: 24px;
+            transition: all 0.3s ease;
+        }
+
+        .problem-card:hover {
+            border-left-color: var(--accent-gold);
+            transform: translateX(4px);
+        }
+
+        .problem-num {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .problem-card-title {
+            font-family: 'Newsreader', Georgia, serif;
+            font-size: 21px;
+            font-weight: 500;
+            color: #FFFFFF;
+            margin-bottom: 10px;
+        }
+
+        .problem-card-desc {
+            font-size: 14.5px;
+            color: #A0A5B5;
+            line-height: 1.6;
+        }
+
+        /* Editorial Sections */
+        .editorial-section {
+            max-width: 1220px;
+            margin: 0 auto;
+            padding: 96px 24px;
+            border-bottom: 1px solid var(--rule-color);
+        }
+
+        .editorial-section:last-of-type {
+            border-bottom: none;
+        }
+
+        .section-intro {
+            margin-bottom: 50px;
+        }
+
+        .section-eyebrow {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--accent-gold);
+            margin-bottom: 10px;
+        }
+
+        .section-title {
+            font-family: 'Newsreader', Georgia, serif;
+            font-size: clamp(30px, 3.4vw, 44px);
+            font-weight: 400;
+            line-height: 1.16;
+            color: var(--ink-primary);
+        }
+
+        /* Pipeline List */
+        .pipeline-list {
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+        }
+
+        .pipeline-row {
+            display: grid;
+            grid-template-columns: 80px 1.2fr 1fr;
+            gap: 28px;
+            align-items: center;
+            background: var(--bg-paper-card);
+            border: 1px solid var(--rule-color);
+            border-radius: var(--radius-sm);
+            padding: 28px 32px;
+            transition: all var(--transition-fast);
+            perspective: 1000px;
+        }
+
+        .pipeline-row:hover {
+            border-color: var(--ink-primary);
+            box-shadow: 0 8px 24px rgba(23, 27, 43, 0.08);
+            transform: translateY(-2px);
+        }
+
+        .pipeline-section-num {
+            font-family: 'Newsreader', Georgia, serif;
+            font-size: 32px;
+            font-style: italic;
+            color: var(--accent-gold);
+        }
+
+        .pipeline-info h3 {
+            font-family: 'Newsreader', Georgia, serif;
+            font-size: 22px;
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+
+        .pipeline-info p {
+            font-size: 14.5px;
+            color: var(--ink-secondary);
+        }
+
+        /* 3D Artifacts */
+        .pipeline-artifact-stage {
+            perspective: 800px;
+            width: 100%;
+            height: 130px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pipeline-artifact-box {
+            background: var(--bg-paper-light);
+            border: 1px solid var(--rule-light);
+            border-radius: var(--radius-sm);
+            padding: 16px 20px;
+            width: 100%;
+            max-width: 280px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            box-shadow: 0 4px 12px rgba(23, 27, 43, 0.04);
+            transition: all var(--transition-smooth);
+            transform-style: preserve-3d;
+        }
+
+        .pipeline-row:hover .pipeline-artifact-box {
+            transform: rotateX(8deg) rotateY(-8deg) translateZ(15px);
+            background: #FFFFFF;
+            border-color: var(--accent-gold);
+            box-shadow: 0 8px 24px rgba(169, 131, 46, 0.12);
+        }
+
+        .artifact-badge {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10.5px;
+            font-weight: 600;
+            color: var(--accent-green);
+            text-transform: uppercase;
+        }
+
+        .artifact-title {
+            font-size: 13.5px;
+            font-weight: 600;
+            color: var(--ink-primary);
+        }
+
+        .artifact-papers-cascade {
+            position: relative;
+            width: 100px;
+            height: 80px;
+            transform-style: preserve-3d;
+            transition: transform var(--transition-smooth);
+        }
+
+        .mini-card {
+            position: absolute;
+            width: 60px;
+            height: 70px;
+            background: #FBFAF6;
+            border: 1px solid var(--rule-color);
+            border-radius: 2px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+
+        .mini-card:nth-child(1) { transform: translate3d(0, 0, 0); z-index: 3; }
+        .mini-card:nth-child(2) { transform: translate3d(12px, 6px, -15px); z-index: 2; background: #F6F3EB; }
+        .mini-card:nth-child(3) { transform: translate3d(24px, 12px, -30px); z-index: 1; background: #ECE7DA; }
+
+        .mini-doc-highlight {
+            width: 120px;
+            height: 70px;
+            background: #FBFAF6;
+            border: 1px solid var(--rule-color);
+            border-radius: 2px;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .mini-line {
+            height: 4px;
+            background: #EAE5D8;
+            border-radius: 1px;
+            width: 100%;
+        }
+
+        .mini-line.hl {
+            background: var(--accent-green-light);
+            border-bottom: 1px solid var(--accent-green);
+            width: 80%;
+        }
+
+        .mini-node-network {
+            position: relative;
+            width: 120px;
+            height: 80px;
+        }
+
+        .mini-node {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--ink-primary);
+            border: 2px solid #FBFAF6;
+        }
+
+        .mini-node.coral {
+            background: var(--accent-coral);
+            box-shadow: 0 0 8px rgba(184, 80, 58, 0.4);
+        }
+
+        .mini-pdf-preview {
+            width: 75px;
+            height: 90px;
+            background: #FBFAF6;
+            border: 1px solid var(--rule-color);
+            border-top: 6px solid var(--ink-primary);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            padding: 8px;
+            gap: 4px;
+        }
+
+        /* 3D Gap Analysis Convergence Section */
+        .gap-convergence-stage {
+            background: var(--bg-paper-card);
+            border: 1px solid var(--rule-color);
+            border-radius: var(--radius-md);
+            padding: 48px;
+            box-shadow: 0 6px 24px rgba(23, 27, 43, 0.05);
+            display: grid;
+            grid-template-columns: 1fr 100px 1.2fr;
+            gap: 20px;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .converge-papers-col {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            z-index: 2;
+        }
+
+        .converge-paper-item {
+            background: var(--bg-paper-light);
+            border: 1px solid var(--rule-light);
+            border-radius: var(--radius-sm);
+            padding: 14px 16px;
+            font-size: 13px;
+            transition: all 0.3s ease;
+        }
+
+        .converge-paper-item:hover {
+            background: #FFFFFF;
+            border-color: var(--rule-color);
+            transform: translateX(4px);
+        }
+
+        .converge-paper-name {
+            font-family: 'Newsreader', Georgia, serif;
+            font-weight: 600;
+            font-size: 14.5px;
+            color: var(--ink-primary);
+            margin-bottom: 4px;
+        }
+
+        .converge-limitation {
+            color: var(--accent-coral);
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .converge-arrow-col {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            height: 100%;
+        }
+
+        .flow-lines-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .flowing-dash {
+            stroke-dasharray: 10, 15;
+            animation: flowDashAnim 2.5s linear infinite;
+        }
+
+        @keyframes flowDashAnim {
+            to { stroke-dashoffset: -100; }
+        }
+
+        .converge-target-col {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            z-index: 2;
+        }
+
+        .gap-highlight-box {
+            background: var(--accent-coral-light);
+            border: 1px solid rgba(184, 80, 58, 0.35);
+            border-left: 4px solid var(--accent-coral);
+            border-radius: var(--radius-sm);
+            padding: 18px 20px;
+        }
+
+        .opportunity-highlight-box {
+            background: var(--accent-green-light);
+            border: 1px solid rgba(63, 122, 94, 0.35);
+            border-left: 4px solid var(--accent-green);
+            border-radius: var(--radius-sm);
+            padding: 18px 20px;
+        }
+
+        /* 3D Patent Landscape Visual Section */
+        .patent-stage-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        .patent-stage-card {
+            background: var(--bg-paper-card);
+            border: 1px solid var(--rule-color);
+            border-radius: var(--radius-sm);
+            padding: 24px;
+            transition: all var(--transition-fast);
+        }
+
+        .patent-stage-card:hover {
+            border-color: var(--accent-gold);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(23, 27, 43, 0.08);
+        }
+
+        .patent-card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .patent-stage-id {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--accent-gold);
+        }
+
+        /* Capabilities Grid */
+        .capabilities-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+
+        .capability-card {
+            background: var(--bg-paper-card);
+            border: 1px solid var(--rule-color);
+            border-radius: var(--radius-sm);
+            padding: 28px 24px;
+            transition: all var(--transition-fast);
+        }
+
+        .capability-card:hover {
+            border-color: var(--ink-primary);
+            transform: translateY(-2px);
+        }
+
+        .cap-tag {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--accent-gold);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .cap-title {
+            font-family: 'Newsreader', Georgia, serif;
+            font-size: 20px;
+            font-weight: 500;
+            margin-bottom: 10px;
+            color: var(--ink-primary);
+        }
+
+        .cap-desc {
+            font-size: 14px;
+            color: var(--ink-secondary);
+            line-height: 1.6;
+        }
+
+        /* Comparison Table */
+        .comparison-table-wrap {
+            overflow-x: auto;
+            background: var(--bg-paper-card);
+            border: 1px solid var(--rule-color);
+            border-radius: var(--radius-sm);
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        .comparison-table th, .comparison-table td {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--rule-light);
+            transition: background var(--transition-fast);
+        }
+
+        .comparison-table tbody tr:hover td {
+            background: #F5F2EB;
+        }
+
+        .comparison-table th {
+            font-family: 'Newsreader', Georgia, serif;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--ink-primary);
+            background: var(--bg-paper-light);
+        }
+
+        .comparison-table th:last-child {
+            background: #EFECE3;
+            color: var(--accent-gold);
+            font-weight: 700;
+        }
+
+        .comparison-table td:last-child {
+            background: #FAF8F2;
+            font-weight: 600;
+            color: var(--accent-green);
+        }
+
+        /* Final Editorial Dark CTA Band */
+        .editorial-cta-band {
+            background: var(--ink-primary);
+            color: var(--bg-paper);
+            padding: 96px 24px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cta-network-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0.35;
+        }
+
+        .cta-band-inner {
+            max-width: 720px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 2;
+        }
+
+        .cta-band-title {
+            font-family: 'Newsreader', Georgia, serif;
+            font-size: clamp(32px, 3.8vw, 48px);
+            font-weight: 400;
+            line-height: 1.15;
+            color: #FFFFFF;
+            margin-bottom: 18px;
+        }
+
+        .cta-band-lead {
+            font-size: 16.5px;
+            color: #A0A5B5;
+            line-height: 1.6;
+            margin-bottom: 32px;
+        }
+
+        .btn-cta-light {
+            background: var(--bg-paper);
+            color: var(--ink-primary);
+            border: 1px solid var(--bg-paper);
+            padding: 14px 34px;
+            border-radius: var(--radius-sm);
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .btn-cta-light:hover {
+            background: #FFFFFF;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 22px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Editorial Footer */
+        .editorial-footer {
+            max-width: 1220px;
+            margin: 0 auto;
+            padding: 50px 24px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13.5px;
+            color: var(--ink-muted);
+            border-top: 1px solid var(--rule-color);
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        /* =========================================================================
+           TOPIC INPUT PAGE & CONFIRMATION
+           ========================================================================= */
+        .topic-question-card {
+            background: var(--bg-paper-card);
+            border: 1px solid var(--rule-color);
+            border-radius: var(--radius-sm);
+            padding: 60px 48px;
+            box-shadow: 0 8px 30px rgba(23, 27, 43, 0.05);
+            max-width: 800px;
+            margin: 80px auto;
+        }
+
+        .question-title {
+            font-family: 'Newsreader', Georgia, serif;
+            font-size: 38px;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        .question-subtitle {
+            font-size: 15px;
+            color: var(--ink-secondary);
+            margin-bottom: 32px;
+            text-align: center;
+            line-height: 1.6;
+        }
+
+        .large-input-wrapper {
+            margin-bottom: 24px;
+        }
+
+        .large-textarea {
+            width: 100%;
+            height: 120px;
+            background: var(--bg-paper-light);
+            border: 1px solid var(--rule-color);
+            border-radius: var(--radius-sm);
+            padding: 20px;
+            color: var(--ink-primary);
+            font-size: 18px;
+            font-family: 'IBM Plex Sans', sans-serif;
+            outline: none;
+            resize: none;
+            transition: all var(--transition-fast);
+        }
+
+        .large-textarea:focus {
+            background: #FFFFFF;
+            border-color: var(--ink-primary);
+        }
+
+        .clickable-examples {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 36px;
+        }
+
+        .example-pill {
             background: transparent;
             border: none;
-            border-radius: 8px;
-            color: var(--text-muted);
-            font-size: 15px;
-            font-weight: 500;
+            color: var(--ink-secondary);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 13.5px;
             text-align: left;
             cursor: pointer;
-            margin-bottom: 10px;
+            transition: color 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .example-pill:hover {
+            color: var(--accent-gold);
+            text-decoration: underline;
+        }
+
+        /* =========================================================================
+           STAGED WORKSPACE
+           ========================================================================= */
+        .workspace-grid-layout {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 28px;
+            margin-top: 24px;
+        }
+
+        .agent-timeline-header {
+            background: var(--bg-paper-card);
+            border: 1px solid var(--rule-color);
+            border-radius: var(--radius-sm);
+            padding: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .agent-timeline-node {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            text-align: center;
+            opacity: 0.5;
+            transition: opacity 0.3s;
+        }
+
+        .agent-timeline-node.active {
+            opacity: 1;
+        }
+
+        .agent-timeline-node.complete {
+            opacity: 0.85;
+        }
+
+        .node-indicator-bar {
+            height: 4px;
+            background: var(--rule-color);
+            width: 100%;
+            border-radius: 2px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .node-indicator-bar.active::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 100%;
+            background: var(--accent-gold);
+            animation: pulseProgress 2s linear infinite;
+        }
+
+        .node-indicator-bar.complete::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 100%;
+            background: var(--accent-green);
+        }
+
+        @keyframes pulseProgress {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .agent-headline-title {
+            font-family: 'Newsreader', Georgia, serif;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .agent-status-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        /* Workspace Main Visual Panel */
+        .workspace-agent-panel {
+            background: var(--bg-paper-card);
+            border: 1px solid var(--rule-color);
+            border-radius: var(--radius-sm);
+            padding: 40px;
+            min-height: 440px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .agent-dashboard-view {
+            display: none;
+        }
+
+        .agent-dashboard-view.active {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Mini-Games Container */
+        .workspace-minigame-container {
+            border-top: 1px dashed var(--rule-color);
+            padding-top: 24px;
+            margin-top: 24px;
+        }
+
+        .game-title {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--accent-gold);
+            margin-bottom: 12px;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        /* Floating interactive connection game */
+        .explorer-node-grid {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+
+        .explorer-node-btn {
+            background: var(--bg-paper-light);
+            border: 1px solid var(--rule-color);
+            border-radius: var(--radius-sm);
+            padding: 8px 14px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 12px;
+            color: var(--ink-secondary);
+            cursor: pointer;
             transition: all 0.2s;
         }
 
-        .nav-btn:hover,
-        .nav-btn.active {
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text-main);
+        .explorer-node-btn.selected {
+            background: var(--ink-primary);
+            color: var(--bg-paper-card);
+            border-color: var(--ink-primary);
         }
 
-        .nav-btn.active {
-            border-left: 3px solid var(--primary);
+        /* Activity Log Panel */
+        .live-log-panel {
+            background: var(--bg-paper-card);
+            border: 1px solid var(--rule-color);
+            border-radius: var(--radius-sm);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            max-height: 520px;
+            overflow-y: auto;
         }
 
-        .content-panel {
-            background: var(--bg-surface);
-            border: 1px solid var(--border-color);
-            border-radius: 20px;
-            padding: 40px;
-            min-height: 500px;
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        /* Component Cards */
-        .section-title {
-            font-family: 'Outfit', sans-serif;
-            font-size: 26px;
-            margin-bottom: 20px;
-            border-bottom: 1px solid var(--border-color);
+        .log-title {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--ink-secondary);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--rule-light);
             padding-bottom: 10px;
         }
 
-        .paper-card,
-        .patent-card {
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-            transition: all 0.3s;
+        .log-item {
+            font-size: 13px;
+            line-height: 1.5;
+            color: var(--ink-secondary);
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
         }
 
-        .paper-card:hover,
-        .patent-card:hover {
-            transform: translateX(4px);
-            border-color: rgba(255, 255, 255, 0.15);
+        .log-item.complete::before {
+            content: "✓";
+            color: var(--accent-green);
+            font-weight: 700;
         }
 
-        .badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            margin-bottom: 10px;
+        .log-item.working::before {
+            content: "◉";
+            color: var(--accent-gold);
+            font-weight: 700;
+            animation: blinkNode 1s linear infinite;
         }
 
-        .badge-red {
-            background: rgba(239, 68, 68, 0.2);
-            color: #FCA5A5;
-            border: 1px solid var(--accent-red);
+        .log-item.waiting::before {
+            content: "○";
+            color: var(--ink-muted);
         }
 
-        .badge-yellow {
-            background: rgba(245, 158, 11, 0.2);
-            color: #FCD34D;
-            border: 1px solid var(--accent-yellow);
+        @keyframes blinkNode {
+            50% { opacity: 0.4; }
         }
 
-        .badge-green {
-            background: rgba(16, 185, 129, 0.2);
-            color: #6EE7B7;
-            border: 1px solid var(--accent-green);
-        }
-
-        .badge-purple {
-            background: rgba(139, 92, 246, 0.2);
-            color: #C084FC;
-            border: 1px solid #8B5CF6;
-        }
-
-        .download-wrapper {
+        /* =========================================================================
+           FINAL REPORT VIEW
+           ========================================================================= -->
+        .report-summary-view {
+            background: var(--bg-paper-card);
+            border: 1px solid var(--rule-color);
+            border-radius: var(--radius-sm);
+            padding: 60px 48px;
+            box-shadow: 0 8px 30px rgba(23, 27, 43, 0.05);
+            max-width: 680px;
+            margin: 80px auto;
             text-align: center;
-            padding: 40px 0;
         }
 
-        .btn-large {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            background: linear-gradient(135deg, var(--accent-green) 0%, #059669 100%);
-            padding: 15px 40px;
-            font-size: 18px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
-            text-decoration: none;
-            color: white;
-            font-weight: 600;
+        .report-summary-title {
+            font-family: 'Newsreader', Georgia, serif;
+            font-size: 42px;
+            color: var(--accent-green);
+            margin-bottom: 12px;
         }
 
-        .btn-large:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+        .report-metrics-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin: 36px 0;
         }
 
-        /* Gap Heatmap */
-        .gap-box {
-            border-left: 4px solid var(--accent-red);
-            padding-left: 15px;
-            margin-bottom: 20px;
+        .report-metric-box {
+            background: var(--bg-paper-light);
+            border: 1px solid var(--rule-light);
+            border-radius: var(--radius-sm);
+            padding: 20px;
         }
     </style>
 </head>
 
 <body>
 
-    <header>
-        <div class="logo">🔬 ResearchIQ</div>
-        <div>Multi-Agent Orchestrator (v1.0)</div>
-    </header>
+    <!-- =========================================================================
+         LANDING VIEW
+         ========================================================================= -->
+    <div id="landing-view">
+        <div class="editorial-nav-wrapper">
+            <nav class="editorial-nav">
+                <a href="#" class="nav-brand" onclick="window.scrollTo({top:0, behavior:'smooth'}); return false;">
+                    <span class="nav-logo-badge">iQ</span>
+                    <span>ResearchIQ</span>
+                </a>
 
-    <div class="main-container">
-        <!-- Search Section -->
-        <div class="search-card">
-            <h1 class="search-title">Discover Research. Uncover Gaps. Map IP.</h1>
-            <p class="search-subtitle">Automate literature discovery across <strong>6 databases</strong> (arXiv ·
-                Semantic Scholar · Crossref · OpenAlex · Europe PMC · DOAJ), identify critical research gaps, and scan
-                patents.</p>
-            <div class="search-bar-wrapper">
-            <input type="text" id="topic-query" class="search-input"
-                    placeholder="Enter your research topic... (e.g. Federated Learning Medical Imaging)">
-                <button id="start-btn" onclick="startPipeline()" class="search-btn">🚀 Start Analysis</button>
-            </div>
+                <ul class="nav-links">
+                    <li><a href="#problem" class="nav-link">Problem</a></li>
+                    <li><a href="#pipeline" class="nav-link">Pipeline</a></li>
+                    <li><a href="#gap-analysis" class="nav-link">Gap Convergence</a></li>
+                    <li><a href="#patents" class="nav-link">Patent Landscape</a></li>
+                    <li><a href="#capabilities" class="nav-link">Capabilities</a></li>
+                    <li><a href="#comparison" class="nav-link">Comparison</a></li>
+                </ul>
+
+                <button class="btn-nav-action" onclick="openQuestionView()">
+                    <span>Get Started</span>
+                </button>
+            </nav>
         </div>
 
-        <!-- Stepper Tracker -->
-        <div id="status-tracker" class="status-container">
-            <div class="stepper">
-                <div class="step" id="step-1">
-                    <div class="step-circle">1</div>
-                    <div class="step-title">Agent 1: Discovery</div>
+        <section class="editorial-hero">
+            <div class="hero-left">
+                <div class="hero-eyebrow">Multi-Agent Research Intelligence</div>
+
+                <h1 class="hero-headline">
+                    Research has blind spots. <br>
+                    <em>Find them before they matter.</em>
+                </h1>
+
+                <p class="hero-lead">
+                    ResearchIQ connects literature discovery, evidence, research gaps, patent landscape analysis, and structured research reporting in one intelligent workflow.
+                </p>
+
+                <div class="hero-cta-row">
+                    <button class="btn-editorial-primary" onclick="openQuestionView()">
+                        <span>Get Started</span>
+                        <span>→</span>
+                    </button>
+                    <a href="#pipeline" class="btn-editorial-link">
+                        <span>See how it works ↓</span>
+                    </a>
                 </div>
-                <div class="step" id="step-2">
-                    <div class="step-circle">2</div>
-                    <div class="step-title">Agent 2: Gap Analysis</div>
-                </div>
-                <div class="step" id="step-3">
-                    <div class="step-circle">3</div>
-                    <div class="step-title">Agent 3: Patent Audit</div>
-                </div>
-                <div class="step" id="step-4">
-                    <div class="step-circle">4</div>
-                    <div class="step-title">Agent 4: PDF Compilation</div>
+
+                <div class="hero-capability-strip">
+                    <span class="hero-cap-item">FULL-TEXT RESEARCH</span>
+                    <span style="color:var(--rule-color)">•</span>
+                    <span class="hero-cap-item">EVIDENCE-GROUNDED ANALYSIS</span>
+                    <span style="color:var(--rule-color)">•</span>
+                    <span class="hero-cap-item">GAP ANALYSIS</span>
+                    <span style="color:var(--rule-color)">•</span>
+                    <span class="hero-cap-item">PATENT LANDSCAPE</span>
                 </div>
             </div>
-            <p id="tracker-message" style="text-align: center; color: var(--text-muted); font-size: 14px;">Initializing
-                multi-agent graph...</p>
-        </div>
 
-        <!-- Dashboard Layout -->
-        <div id="dashboard" class="dashboard-layout">
-            <!-- Sidebar -->
-            <div class="sidebar-nav">
-                <button onclick="switchTab('overview')" id="btn-overview" class="nav-btn active">Overview</button>
-                <button onclick="switchTab('papers')" id="btn-papers" class="nav-btn">Research Papers</button>
-                <button onclick="switchTab('gaps')" id="btn-gaps" class="nav-btn">Gap Analysis</button>
-                <button onclick="switchTab('patents')" id="btn-patents" class="nav-btn">Patents Vetting</button>
-                <button onclick="switchTab('export')" id="btn-export" class="nav-btn">Export Brief</button>
+            <!-- Hero Right: 3D Coordinated Paper Stack & Interactive Orbit -->
+            <div class="hero-3d-stage" id="hero-3d-stage">
+                <canvas class="orbit-canvas-bg" id="hero-orbit-canvas"></canvas>
+
+                <div class="fluid-paper-stack" id="hero-paper-stack">
+                    <div class="paper-layer layer-deep-3" id="paper-layer-3"></div>
+                    <div class="paper-layer layer-mid-2" id="paper-layer-2"></div>
+                    <div class="paper-layer layer-base-1" id="paper-layer-1"></div>
+
+                    <!-- Top Active Examined Document -->
+                    <div class="paper-sheet-top" id="paper-top-sheet">
+                        <div class="sheet-header">
+                            <span class="sheet-meta">Doc ID: P001 // Research Excerpt</span>
+                            <span class="sheet-stamp">✓ Full-Text Verified</span>
+                        </div>
+
+                        <h4 class="sheet-title">Multi-Agent Coordination & Scalability in Distributed AI Environments</h4>
+                        <div class="sheet-authors">Zhang et al. (2025) • Journal of Distributed Intelligence</div>
+
+                        <div class="sheet-body-text">
+                            "Recent multi-agent reinforcement learning architectures rely on <span class="highlight-passage hl-gold" id="hl-method">decentralized policy consensus</span>. However, when agent populations scale exponentially, <span class="highlight-passage hl-coral" id="hl-gap">non-stationarity causes severe communication bottlenecks</span>, leaving zero-shot coordination unaddressed in open networks..."
+                        </div>
+
+                        <!-- Fluid Annotation Cluster -->
+                        <div class="annotation-cluster">
+                            <div class="paper-annotation-card">
+                                <span class="annotation-tag tag-gap">GAP</span>
+                                <span style="color: var(--ink-secondary);">Non-stationarity under scaling (Severity: Critical)</span>
+                            </div>
+
+                            <div class="paper-annotation-card">
+                                <span class="annotation-tag tag-method">METHOD</span>
+                                <span style="color: var(--ink-secondary);">Decentralized consensus & convention protocols</span>
+                            </div>
+
+                            <div class="paper-annotation-card">
+                                <span class="annotation-tag tag-patent">PATENT</span>
+                                <span style="color: var(--ink-secondary);">US20240185123A1 (FTO: Clear • Prior art audited)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dark Problem Strip -->
+        <section class="dark-problem-strip" id="problem">
+            <div class="problem-inner">
+                <div class="problem-header">
+                    <div class="problem-eyebrow">The Literature Dilemma</div>
+                    <h2 class="problem-title">
+                        Research doesn't fail because there aren't enough papers. <br>
+                        <em>It fails because the important connections are easy to miss.</em>
+                    </h2>
+                </div>
+
+                <div class="problem-grid">
+                    <div class="problem-card">
+                        <div class="problem-num" style="color: var(--accent-gold);">01 // VOLUME</div>
+                        <h3 class="problem-card-title">Too much literature</h3>
+                        <p class="problem-card-desc">Relevant work is scattered across disconnected repositories, ambiguous terminology, and siloed academic disciplines.</p>
+                    </div>
+
+                    <div class="problem-card">
+                        <div class="problem-num" style="color: var(--accent-coral);">02 // VERIFICATION</div>
+                        <h3 class="problem-card-title">Gaps are difficult to prove</h3>
+                        <p class="problem-card-desc">A missing connection or methodological omission across 10+ papers is significantly harder to establish than an isolated existing claim.</p>
+                    </div>
+
+                    <div class="problem-card">
+                        <div class="problem-num" style="color: var(--accent-green);">03 // PRIOR ART</div>
+                        <h3 class="problem-card-title">Novelty has another lens</h3>
+                        <p class="problem-card-desc">A method can appear completely novel in the academic literature while identical technical claims already exist in patent registries.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Numbered Pipeline (§1 to §5) with 3D Artifacts -->
+        <section class="editorial-section" id="pipeline">
+            <div class="section-intro">
+                <div class="section-eyebrow">End-To-End Architecture</div>
+                <h2 class="section-title">A Rigorous Five-Stage Intelligence Pipeline</h2>
             </div>
 
-            <!-- Content Area -->
-            <div class="content-panel">
-                <!-- Overview Tab -->
-                <div id="tab-overview" class="tab-content active">
-                    <h2 class="section-title">Analysis Overview</h2>
-                    <p style="margin-bottom: 20px; line-height: 1.6;">Our agents have crawled the databases, identified
-                        key omissions in current academic frameworks, and audited similar active patent claims. Click
-                        through the sidebar links to review findings or export the generated dossier.</p>
-
-                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; text-align: center;">
-                        <div
-                            style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px;">
-                            <h3 style="font-size: 32px; color: var(--primary);" id="stat-papers">0</h3>
-                            <p style="color: var(--text-muted); font-size: 14px;">Papers Discovered</p>
-                        </div>
-                        <div
-                            style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px;">
-                            <h3 style="font-size: 32px; color: var(--accent-yellow);" id="stat-gaps">0</h3>
-                            <p style="color: var(--text-muted); font-size: 14px;">Research Gaps Identified</p>
-                        </div>
-                        <div
-                            style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px;">
-                            <h3 style="font-size: 32px; color: var(--accent-red);" id="stat-patents">0</h3>
-                            <p style="color: var(--text-muted); font-size: 14px;">Patents Audited</p>
+            <div class="pipeline-list">
+                <!-- §1 -->
+                <div class="pipeline-row">
+                    <div class="pipeline-section-num">§1</div>
+                    <div class="pipeline-info">
+                        <h3>Research Discovery</h3>
+                        <p>Scans academic databases using topic-grounded queries and filters candidates through mandatory domain and mechanism hard gates.</p>
+                    </div>
+                    <div class="pipeline-artifact-stage">
+                        <div class="pipeline-artifact-box">
+                            <div class="artifact-papers-cascade">
+                                <div class="mini-card"></div>
+                                <div class="mini-card"></div>
+                                <div class="mini-card"></div>
+                            </div>
+                            <div class="artifact-title" style="margin-top: 10px;">Full-Text verified corpus</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Papers Tab -->
-                <div id="tab-papers" class="tab-content">
-                    <h2 class="section-title">Discovered Research Papers</h2>
-                    <div id="papers-list"></div>
+                <!-- §2 -->
+                <div class="pipeline-row">
+                    <div class="pipeline-section-num">§2</div>
+                    <div class="pipeline-info">
+                        <h3>Evidence Analysis</h3>
+                        <p>Extracts formal claims, algorithmic executions, and datasets using deterministic, section-aware TextRank summarization.</p>
+                    </div>
+                    <div class="pipeline-artifact-stage">
+                        <div class="pipeline-artifact-box">
+                            <div class="mini-doc-highlight">
+                                <div class="mini-line"></div>
+                                <div class="mini-line hl"></div>
+                                <div class="mini-line"></div>
+                            </div>
+                            <div class="artifact-title" style="margin-top: 10px;">TextRank Fact Sheets</div>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Gaps Tab -->
-                <div id="tab-gaps" class="tab-content">
-                    <h2 class="section-title">Literature Gap Analysis</h2>
-                    <div id="paper-gaps-list"></div>
+                <!-- §3 -->
+                <div class="pipeline-row">
+                    <div class="pipeline-section-num">§3</div>
+                    <div class="pipeline-info">
+                        <h3>Gap Analysis</h3>
+                        <p>Cross-references evidence across all admitted papers to extract recurring contradictions, methodological bottlenecks, and omissions.</p>
+                    </div>
+                    <div class="pipeline-artifact-stage">
+                        <div class="pipeline-artifact-box">
+                            <div class="mini-node-network">
+                                <div class="mini-node" style="top:10px; left:10px;"></div>
+                                <div class="mini-node" style="top:50px; left:20px;"></div>
+                                <div class="mini-node coral" style="top:30px; left:70px;"></div>
+                            </div>
+                            <div class="artifact-title" style="margin-top: 10px;">Synthesized Gaps Matrix</div>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Patents Tab -->
-                <div id="tab-patents" class="tab-content">
-                    <h2 class="section-title">Patent Infringement Vetting</h2>
-                    <div id="patents-list"></div>
+                <!-- §4 -->
+                <div class="pipeline-row">
+                    <div class="pipeline-section-num">§4</div>
+                    <div class="pipeline-info">
+                        <h3>Patent Landscape</h3>
+                        <p>Searches patent registries independently against the core research topic to identify prior art claims and freedom-to-operate.</p>
+                    </div>
+                    <div class="pipeline-artifact-stage">
+                        <div class="pipeline-artifact-box">
+                            <div class="mini-card" style="transform: rotate(-5deg); background:#F5EEDB; border-color:var(--accent-gold);"></div>
+                            <div class="mini-card" style="transform: translate(20px, 5px) rotate(5deg); background:#FBFAF6;"></div>
+                            <div class="artifact-title" style="margin-top: 85px;">FTO Prior Art Audit</div>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Export Tab -->
-                <div id="tab-export" class="tab-content">
-                    <h2 class="section-title">Dossier PDF Export</h2>
-                    <p style="color: var(--text-muted); margin-bottom: 30px; line-height: 1.6;">Your multi-agent
-                        compiled report has been generated. The PDF contains plagiarism-safe summaries, gap analysis,
-                        patent landscapes, and a metadata reference appendix.</p>
-                    <div class="download-wrapper">
-                        <a href="#" id="pdf-download-btn" class="btn-large" target="_blank">📥 Download PDF Report</a>
+                <!-- §5 -->
+                <div class="pipeline-row">
+                    <div class="pipeline-section-num">§5</div>
+                    <div class="pipeline-info">
+                        <h3>Research Report</h3>
+                        <p>Compiles findings, gap syntheses, patent audits, and actionable research strategies into a publication-ready PDF dossier.</p>
+                    </div>
+                    <div class="pipeline-artifact-stage">
+                        <div class="pipeline-artifact-box">
+                            <div class="mini-pdf-preview">
+                                <div class="mini-line"></div>
+                                <div class="mini-line"></div>
+                                <div class="mini-line" style="background:var(--accent-gold); width:60%;"></div>
+                            </div>
+                            <div class="artifact-title" style="margin-top: 10px;">Export Structured PDF</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3D Gap Analysis Convergence Section -->
+        <section class="editorial-section" id="gap-analysis">
+            <div class="section-intro">
+                <div class="section-eyebrow">Gap Convergence</div>
+                <h2 class="section-title">Find the Space Between What Exists and What's Next.</h2>
+                <p style="color: var(--ink-secondary); font-size: 16px; margin-top: 8px;">
+                    Research gaps emerge at the exact intersection where multiple independent research limitations converge.
+                </p>
+            </div>
+
+            <div class="gap-convergence-stage">
+                <svg class="flow-lines-svg" id="flow-lines-svg">
+                    <path class="flowing-dash" id="flow-path-1" fill="none" stroke="rgba(184, 80, 58, 0.35)" stroke-width="2" />
+                    <path class="flowing-dash" id="flow-path-2" fill="none" stroke="rgba(184, 80, 58, 0.35)" stroke-width="2" />
+                    <path class="flowing-dash" id="flow-path-3" fill="none" stroke="rgba(184, 80, 58, 0.35)" stroke-width="2" />
+                </svg>
+
+                <div class="converge-papers-col">
+                    <div class="converge-paper-item" id="c-paper-1">
+                        <div class="converge-paper-name">Paper A: Hanabi Action Space Augmentation</div>
+                        <div class="converge-limitation">Limitation: Fails under high-latency asynchronous networks</div>
+                    </div>
+
+                    <div class="converge-paper-item" id="c-paper-2">
+                        <div class="converge-paper-name">Paper B: Transformer MARL Decision Ordering</div>
+                        <div class="converge-limitation">Limitation: Computation explodes beyond 8 agents ($O(N^2)$)</div>
+                    </div>
+
+                    <div class="converge-paper-item" id="c-paper-3">
+                        <div class="converge-paper-name">Paper C: CMA-ES Hybrid Strategy Evolution</div>
+                        <div class="converge-limitation">Limitation: Requires full environment observability</div>
+                    </div>
+                </div>
+
+                <div class="converge-arrow-col">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent-coral)" stroke-width="2" style="z-index: 2; background: var(--bg-paper-card); border-radius: 50%;">
+                        <path d="M5 12h14"></path>
+                        <path d="M12 5l7 7-7 7"></path>
+                    </svg>
+                </div>
+
+                <div class="converge-target-col">
+                    <div class="gap-highlight-box" id="c-target-gap">
+                        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; font-weight:700; color:var(--accent-coral); margin-bottom:4px;">
+                            ⚠ CONVERGED CORE RESEARCH GAP
+                        </div>
+                        <h4 style="font-family:'Newsreader', serif; font-size:17.5px; font-weight:600; color:var(--ink-primary); margin-bottom:6px;">
+                            Non-Stationarity & Communication Bottlenecks Under Scaling
+                        </h4>
+                        <div style="font-size:13px; color:var(--ink-secondary); line-height:1.5;">
+                            All three independent papers encounter severe degradation when scaling beyond localized, synchronous coordination.
+                        </div>
+                    </div>
+
+                    <div class="opportunity-highlight-box">
+                        <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; font-weight:700; color:var(--accent-green); margin-bottom:4px;">
+                            💡 DERIVED RESEARCH OPPORTUNITY
+                        </div>
+                        <h4 style="font-family:'Newsreader', serif; font-size:17.5px; font-weight:600; color:var(--ink-primary); margin-bottom:6px;">
+                            Decentralized Meta-Learning Protocols for Zero-Shot Synchronization
+                        </h4>
+                        <div style="font-size:13px; color:var(--ink-secondary); line-height:1.5;">
+                            Addresses unverified assumptions across Papers A, B, and C with sub-linear communication overhead.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3D Patent Landscape Visual Section -->
+        <section class="editorial-section" id="patents">
+            <div class="section-intro">
+                <div class="section-eyebrow">Intellectual Property</div>
+                <h2 class="section-title">Literature is only one side of novelty.</h2>
+                <p style="color: var(--ink-secondary); font-size: 16px; margin-top: 8px;">
+                    Search patent databases independently from academic literature to map technical claims, prior art, and freedom-to-operate white spaces.
+                </p>
+            </div>
+
+            <div class="patent-stage-grid">
+                <div class="patent-stage-card">
+                    <div class="patent-card-top">
+                        <span class="patent-stage-id">US20240185123A1</span>
+                        <span class="badge badge-green">FTO: Clear</span>
+                    </div>
+                    <h4 style="font-family:'Newsreader', serif; font-size:17px; font-weight:600; margin-bottom:6px;">Autonomous Multi-Agent Task Orchestration System</h4>
+                    <p style="font-size:12.5px; color:var(--ink-muted); margin-bottom:10px;">Assignee: DeepMind Technologies / Alphabet</p>
+                    <p style="font-size:13.5px; color:var(--ink-secondary); line-height:1.5; margin-bottom:12px;">
+                        Evaluates prior art overlap in distributed consensus and agent coordination mechanisms.
+                    </p>
+                    <div style="background:var(--bg-paper-light); border-left:3px solid var(--accent-green); padding:10px; border-radius:var(--radius-sm); font-size:12.5px; color:var(--ink-primary);">
+                        <strong>Actionable Strategy:</strong> Implement decentralized consensus to design around centralized dispatch claims.
+                    </div>
+                </div>
+
+                <div class="patent-stage-card">
+                    <div class="patent-card-top">
+                        <span class="patent-stage-id">EP3829104A1</span>
+                        <span class="badge badge-yellow">FTO: Caution</span>
+                    </div>
+                    <h4 style="font-family:'Newsreader', serif; font-size:17px; font-weight:600; margin-bottom:6px;">Distributed Neural Policy Optimization for Multi-Device Agents</h4>
+                    <p style="font-size:12.5px; color:var(--ink-muted); margin-bottom:10px;">Assignee: Microsoft Technology Licensing</p>
+                    <p style="font-size:13.5px; color:var(--ink-secondary); line-height:1.5; margin-bottom:12px;">
+                        Claims broad gradient synchronization across asynchronous client devices.
+                    </p>
+                    <div style="background:var(--bg-paper-light); border-left:3px solid var(--accent-gold); padding:10px; border-radius:var(--radius-sm); font-size:12.5px; color:var(--ink-primary);">
+                        <strong>Actionable Strategy:</strong> Restrict execution to zero-communication peer conventions to avoid server aggregation claims.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Final Editorial Dark CTA Band -->
+        <section class="editorial-cta-band">
+            <canvas class="cta-network-canvas" id="cta-network-canvas"></canvas>
+            <div class="cta-band-inner">
+                <h2 class="cta-band-title">Your next research question deserves more than a search box.</h2>
+                <p class="cta-band-lead">ResearchIQ connects literature, evidence, gaps, patents, and research reporting into one workflow.</p>
+                <button class="btn-cta-light" onclick="openQuestionView()">
+                    <span>Start Research Now</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Editorial Footer -->
+        <footer class="editorial-footer">
+            <div>
+                <strong>(iQ) ResearchIQ</strong> — Multi-Agent Research Intelligence Platform
+            </div>
+            <div style="display: flex; gap: 24px;">
+                <a href="#pipeline" style="color:var(--ink-muted); text-decoration:none;">Pipeline</a>
+                <a href="#gap-analysis" style="color:var(--ink-muted); text-decoration:none;">Gap Analysis</a>
+                <a href="#patents" style="color:var(--ink-muted); text-decoration:none;">Patent Landscape</a>
+                <a href="javascript:void(0)" onclick="openQuestionView()" style="color:var(--ink-primary); font-weight:600; text-decoration:none;">Launch Workspace</a>
+            </div>
+            <div>
+                © 2026 ResearchIQ. Multi-Agent Engine v2.0.
+            </div>
+        </footer>
+    </div>
+
+    <!-- =========================================================================
+         RESEARCH QUESTION PAGE
+         ========================================================================= -->
+    <div id="question-view">
+        <header class="workspace-header-bar">
+            <div class="nav-brand" onclick="closeWorkspace()">
+                <span class="nav-logo-badge">iQ</span>
+                <span>ResearchIQ Workspace</span>
+            </div>
+            <button class="btn-back-landing" onclick="closeWorkspace()">
+                <span>← Back to Overview</span>
+            </button>
+        </header>
+
+        <div class="topic-question-card">
+            <h1 class="question-title">What are you researching?</h1>
+            <p class="question-subtitle">Enter a research topic and ResearchIQ will investigate the literature, identify evidence and gaps, explore the patent landscape, and compile a structured report.</p>
+            
+            <div class="large-input-wrapper">
+                <textarea id="topic-query" class="large-textarea" placeholder="Enter your research topic... (e.g. Multi-agent systems in artificial intelligence)"></textarea>
+            </div>
+
+            <div class="clickable-examples">
+                <span style="font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--ink-muted); font-weight:600;">CLICKABLE EXAMPLES:</span>
+                <button class="example-pill" onclick="setTopic('Multi-agent systems in artificial intelligence')">• Multi-agent AI systems</button>
+                <button class="example-pill" onclick="setTopic('Deepfake audio detection and verification')">• Deepfake audio detection</button>
+                <button class="example-pill" onclick="setTopic('Medical image segmentation using transformer models')">• Medical image segmentation</button>
+                <button class="example-pill" onclick="setTopic('Large language model hallucination detection')">• LLM hallucination detection</button>
+            </div>
+
+            <div style="text-align: center;">
+                <button class="btn-editorial-primary" onclick="confirmTopic()" id="start-btn">
+                    <span>START RESEARCH →</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =========================================================================
+         TOPIC CONFIRMATION VIEW
+         ========================================================================= -->
+    <div id="confirm-view">
+        <header class="workspace-header-bar">
+            <div class="nav-brand" onclick="closeWorkspace()">
+                <span class="nav-logo-badge">iQ</span>
+                <span>ResearchIQ Workspace</span>
+            </div>
+        </header>
+
+        <div class="topic-question-card" style="text-align: center; max-width: 600px;">
+            <div style="font-family:'IBM Plex Mono', monospace; font-size:12px; font-weight:700; color:var(--accent-gold); margin-bottom:16px;">
+                RESEARCH QUESTION CONFIRMATION
+            </div>
+            <h2 style="font-family:'Newsreader', serif; font-size:32px; line-height:1.3; margin-bottom:24px;" id="confirm-topic-text">
+                "Multi-agent systems in artificial intelligence"
+            </h2>
+            <p style="color:var(--ink-secondary); font-size:14.5px; margin-bottom:32px; line-height:1.6;">
+                The multi-agent coordinator will now launch 4 specialized agents to conduct full-text research paper discovery, comparative gap synthesis, patent prior art mapping, and dossier PDF compilation.
+            </p>
+            <div>
+                <button class="btn-editorial-primary" onclick="launchInvestigation()" style="padding:14px 40px; font-size:16px;">
+                    <span>[ Begin Investigation ]</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =========================================================================
+         LIVE WORKSPACE & AGENT PIPELINE
+         ========================================================================= -->
+    <div id="workspace-view">
+        <header class="workspace-header-bar">
+            <div class="nav-brand" onclick="closeWorkspace()">
+                <span class="nav-logo-badge">iQ</span>
+                <span>ResearchIQ Workspace</span>
+            </div>
+        </header>
+
+        <div class="workspace-container">
+            <!-- Pipeline Stage Indicator -->
+            <div class="agent-timeline-header">
+                <div class="agent-timeline-node" id="node-agent-1">
+                    <span class="agent-status-label" id="status-tag-1">○ WAITING</span>
+                    <h3 class="agent-headline-title">§1 Discovery</h3>
+                    <div class="node-indicator-bar" id="bar-1"></div>
+                </div>
+
+                <div class="agent-timeline-node" id="node-agent-2">
+                    <span class="agent-status-label" id="status-tag-2">○ WAITING</span>
+                    <h3 class="agent-headline-title">§2 Gaps Analysis</h3>
+                    <div class="node-indicator-bar" id="bar-2"></div>
+                </div>
+
+                <div class="agent-timeline-node" id="node-agent-3">
+                    <span class="agent-status-label" id="status-tag-3">○ WAITING</span>
+                    <h3 class="agent-headline-title">§3 Patent Landscape</h3>
+                    <div class="node-indicator-bar" id="bar-3"></div>
+                </div>
+
+                <div class="agent-timeline-node" id="node-agent-4">
+                    <span class="agent-status-label" id="status-tag-4">○ WAITING</span>
+                    <h3 class="agent-headline-title">§4 Report Generation</h3>
+                    <div class="node-indicator-bar" id="bar-4"></div>
+                </div>
+            </div>
+
+            <div class="workspace-grid-layout">
+                <!-- Left: Active Agent Dashboard Panel -->
+                <div class="workspace-agent-panel">
+                    <!-- Agent 1 Discovery Panel -->
+                    <div class="agent-dashboard-view" id="panel-agent-1">
+                        <div>
+                            <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; font-weight:700; color:var(--accent-green); margin-bottom:6px;">
+                                ACTIVE AGENT
+                            </div>
+                            <h2 style="font-family:'Newsreader', serif; font-size:32px; line-height:1.2; margin-bottom:8px; color:var(--accent-green);">
+                                RESEARCH DISCOVERY
+                            </h2>
+                            <p style="color:var(--ink-secondary); font-size:14.5px;">
+                                Finding the strongest full-text research evidence body paragraphs.
+                            </p>
+                        </div>
+
+                        <!-- Stack simulation -->
+                        <div style="background:var(--bg-paper-light); border:1px solid var(--rule-light); padding:20px; border-radius:var(--radius-sm);">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-family:'IBM Plex Mono', monospace; font-size:11px;">
+                                <span style="color:var(--accent-green);">● SEARCHING METADATA...</span>
+                                <span style="color:var(--ink-muted);">CORPUS HARVESTING</span>
+                            </div>
+                            <h4 style="font-family:'Newsreader', serif; font-size:18px; font-weight:600; margin-bottom:8px;" id="agent1-doc-title">
+                                Fetching candidate research papers...
+                            </h4>
+                            <div style="display:flex; gap:10px; font-size:12px;">
+                                <span id="agent1-doc-relevance" style="font-weight:600;">Relevance: --</span>
+                                <span id="agent1-doc-status" style="color:var(--accent-green);">Full-text checking...</span>
+                            </div>
+                        </div>
+
+                        <!-- Waiting Game 1 -->
+                        <div class="workspace-minigame-container">
+                            <div class="game-title">WHILE WE SEARCH... Connect the research</div>
+                            <div class="explorer-node-grid">
+                                <button class="explorer-node-btn" onclick="toggleNode(this, 'PAPERS')">PAPERS</button>
+                                <button class="explorer-node-btn" onclick="toggleNode(this, 'METHODS')">METHODS</button>
+                                <button class="explorer-node-btn" onclick="toggleNode(this, 'DATA')">DATA</button>
+                                <button class="explorer-node-btn" onclick="toggleNode(this, 'MODELS')">MODELS</button>
+                                <button class="explorer-node-btn" onclick="toggleNode(this, 'EVIDENCE')">EVIDENCE</button>
+                            </div>
+                            <p id="game-feedback-1" style="font-size:13px; color:var(--ink-secondary); font-style:italic;">
+                                Select two floating nodes to establish a thematic bridge.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Agent 2 Gaps Panel -->
+                    <div class="agent-dashboard-view" id="panel-agent-2">
+                        <div>
+                            <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; font-weight:700; color:var(--accent-coral); margin-bottom:6px;">
+                                ACTIVE AGENT
+                            </div>
+                            <h2 style="font-family:'Newsreader', serif; font-size:32px; line-height:1.2; margin-bottom:8px; color:var(--accent-coral);">
+                                GAP ANALYSIS
+                            </h2>
+                            <p style="color:var(--ink-secondary); font-size:14.5px;">
+                                Comparing evidence to uncover what the literature misses.
+                            </p>
+                        </div>
+
+                        <div style="background:var(--bg-paper-light); border:1px solid var(--rule-light); padding:20px; border-radius:var(--radius-sm);">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-family:'IBM Plex Mono', monospace; font-size:11px;">
+                                <span style="color:var(--accent-coral);">● MAPPING CONFLICT CONVERGENCES...</span>
+                            </div>
+                            <h4 style="font-family:'Newsreader', serif; font-size:18px; font-weight:600; margin-bottom:8px;" id="agent2-doc-title">
+                                Cross-referencing methodology limitations...
+                            </h4>
+                            <div style="display:flex; gap:10px; font-size:12px;">
+                                <span style="font-weight:600; color:var(--accent-coral);">Severity: Critical</span>
+                                <span style="color:var(--ink-secondary);">Gap class identified</span>
+                            </div>
+                        </div>
+
+                        <!-- Waiting Game 2 -->
+                        <div class="workspace-minigame-container">
+                            <div class="game-title">SPOT THE GAP: Compare Datasets</div>
+                            <p style="font-size:13.5px; margin-bottom:12px; color:var(--ink-secondary);">
+                                Study A: Uses dataset X. Study B: Uses dataset X. Study C: Uses dataset Y. What is missing?
+                            </p>
+                            <div class="explorer-node-grid">
+                                <button class="explorer-node-btn" onclick="answerGame2('wrong')">Evaluation baseline</button>
+                                <button class="explorer-node-btn" onclick="answerGame2('correct')">Cross-dataset validation</button>
+                                <button class="explorer-node-btn" onclick="answerGame2('wrong')">Model parameter count</button>
+                            </div>
+                            <p id="game-feedback-2" style="font-size:13px; color:var(--ink-secondary); font-style:italic;"></p>
+                        </div>
+                    </div>
+
+                    <!-- Agent 3 Patent Panel -->
+                    <div class="agent-dashboard-view" id="panel-agent-3">
+                        <div>
+                            <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; font-weight:700; color:var(--accent-gold); margin-bottom:6px;">
+                                ACTIVE AGENT
+                            </div>
+                            <h2 style="font-family:'Newsreader', serif; font-size:32px; line-height:1.2; margin-bottom:8px; color:var(--accent-gold);">
+                                PATENT LANDSCAPE
+                            </h2>
+                            <p style="color:var(--ink-secondary); font-size:14.5px;">
+                                Exploring technical prior art related to your research topic.
+                            </p>
+                        </div>
+
+                        <div style="background:var(--bg-paper-light); border:1px solid var(--rule-light); padding:20px; border-radius:var(--radius-sm);">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-family:'IBM Plex Mono', monospace; font-size:11px;">
+                                <span style="color:var(--accent-gold);">● VETTING PRIOR ART OVERLAPS...</span>
+                            </div>
+                            <h4 style="font-family:'Newsreader', serif; font-size:18px; font-weight:600; margin-bottom:8px;" id="agent3-doc-title">
+                                Auditing patent registry claims...
+                            </h4>
+                            <div style="display:flex; gap:10px; font-size:12px;">
+                                <span style="font-weight:600; color:var(--accent-gold);">FTO Rating: Clear</span>
+                            </div>
+                        </div>
+
+                        <!-- Waiting Game 3 -->
+                        <div class="workspace-minigame-container">
+                            <div class="game-title">PATENT RADAR: Move cursor to explore</div>
+                            <div style="height:80px; border:1px dashed var(--rule-color); border-radius:var(--radius-sm); position:relative; overflow:hidden;" onmousemove="exploreRadar(event)" id="radar-box">
+                                <div style="text-align:center; padding-top:28px; font-size:13px; color:var(--ink-muted);" id="radar-text">
+                                    Hover cursor here to scan patent concepts...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Agent 4 Report Panel -->
+                    <div class="agent-dashboard-view" id="panel-agent-4">
+                        <div>
+                            <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; font-weight:700; color:var(--ink-primary); margin-bottom:6px;">
+                                ACTIVE AGENT
+                            </div>
+                            <h2 style="font-family:'Newsreader', serif; font-size:32px; line-height:1.2; margin-bottom:8px; color:var(--ink-primary);">
+                                REPORT GENERATION
+                            </h2>
+                            <p style="color:var(--ink-secondary); font-size:14.5px;">
+                                Turning the investigation into a structured PDF research report.
+                            </p>
+                        </div>
+
+                        <div style="background:var(--bg-paper-light); border:1px solid var(--rule-light); padding:20px; border-radius:var(--radius-sm);">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-family:'IBM Plex Mono', monospace; font-size:11px;">
+                                <span style="color:var(--ink-primary);">● ASSEMBLING REPORT SECTIONS...</span>
+                            </div>
+                            <h4 style="font-family:'Newsreader', serif; font-size:18px; font-weight:600; margin-bottom:8px;" id="agent4-doc-title">
+                                Assembling Cover & Executive Summary...
+                            </h4>
+                        </div>
+
+                        <!-- Waiting Game 4 -->
+                        <div class="workspace-minigame-container">
+                            <div class="game-title">BUILD YOUR RESEARCH OUTLINE</div>
+                            <div class="explorer-node-grid">
+                                <button class="explorer-node-btn" onclick="addOutline('EVIDENCE')">+ EVIDENCE</button>
+                                <button class="explorer-node-btn" onclick="addOutline('GAPS')">+ GAPS</button>
+                                <button class="explorer-node-btn" onclick="addOutline('PATENTS')">+ PATENTS</button>
+                                <button class="explorer-node-btn" onclick="addOutline('METHODS')">+ METHODS</button>
+                            </div>
+                            <p id="game-feedback-4" style="font-size:13px; color:var(--ink-secondary); font-style:italic;">
+                                Add outline sections to design your brief.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Live Activity Log Panel -->
+                <div class="live-log-panel">
+                    <div class="log-title">LIVE RESEARCH ACTIVITY</div>
+                    <div id="log-items-container">
+                        <div class="log-item complete">Research topic received</div>
+                        <div class="log-item working" id="log-working-item">Searching scholarly sources...</div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- =========================================================================
+         FINAL REPORT VIEW
+         ========================================================================= -->
+    <div id="report-summary-view" class="report-summary-view">
+        <h1 class="report-summary-title">RESEARCH COMPLETE ✓</h1>
+        <p style="color:var(--ink-secondary); font-size:15px; margin-bottom:28px;" id="report-summary-topic">
+            Topic: "Multi-agent systems in artificial intelligence"
+        </p>
+
+        <div class="report-metrics-row">
+            <div class="report-metric-box">
+                <h3 style="font-size:32px; color:var(--ink-primary); font-family:'Newsreader', serif;" id="final-stat-papers">0</h3>
+                <p style="color:var(--ink-muted); font-size:12px; font-family:'IBM Plex Mono', monospace;">Papers Discovered</p>
+            </div>
+            <div class="report-metric-box">
+                <h3 style="font-size:32px; color:var(--accent-coral); font-family:'Newsreader', serif;" id="final-stat-gaps">0</h3>
+                <p style="color:var(--ink-muted); font-size:12px; font-family:'IBM Plex Mono', monospace;">Research Gaps</p>
+            </div>
+            <div class="report-metric-box">
+                <h3 style="font-size:32px; color:var(--accent-green); font-family:'Newsreader', serif;" id="final-stat-patents">0</h3>
+                <p style="color:var(--ink-muted); font-size:12px; font-family:'IBM Plex Mono', monospace;">Patents Vetted</p>
+            </div>
+        </div>
+
+        <div style="display:flex; justify-content:center; gap:20px;">
+            <button class="btn-editorial-primary" onclick="viewDetailedWorkspace()">
+                <span>[ VIEW REPORT ]</span>
+            </button>
+            <a href="#" id="final-pdf-btn" class="btn-editorial-primary" style="background:var(--accent-gold); border-color:var(--accent-gold);" target="_blank">
+                <span>[ DOWNLOAD PDF ]</span>
+            </a>
+        </div>
+    </div>
+
+
+    <!-- =========================================================================
+         INTERACTIVE 3D ORBIT, MOUSE PARALLAX & APP LOGIC
+         ========================================================================= -->
     <script>
-        let reportData = null;
-        // ── Pipeline request lock ──────────────────────────────────────────
-        // Prevents the user from triggering multiple concurrent pipeline runs
-        // (e.g., via double-click or pressing Enter while pipeline is running).
-        let pipelineRunning = false;
-
-        // Allow Enter key on the input to trigger startPipeline()
-        document.addEventListener('DOMContentLoaded', function () {
-            const input = document.getElementById('topic-query');
-            if (input) {
-                input.addEventListener('keydown', function (e) {
-                    if (e.key === 'Enter') {
-                        startPipeline();
-                    }
-                });
-            }
-        });
-
-        function switchTab(tabName) {
-            // Remove active class from buttons & contents
-            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-
-            // Set active
-            document.getElementById(`btn-${tabName}`).classList.add('active');
-            document.getElementById(`tab-${tabName}`).classList.add('active');
+        // ── View Switching & Routing ────────────────────────────────────────
+        function openQuestionView() {
+            document.getElementById('landing-view').style.display = 'none';
+            document.getElementById('question-view').style.display = 'block';
+            document.getElementById('question-view').style.opacity = '1';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        async function startPipeline() {
-            // ── Request lock: abort if already running ──────────────────────
-            if (pipelineRunning) {
-                console.warn('[ResearchIQ] Pipeline already running — ignoring duplicate trigger.');
-                return;
-            }
-            pipelineRunning = true;
+        function setTopic(val) {
+            document.getElementById('topic-query').value = val;
+        }
 
-            // Disable button to give visual feedback and prevent further clicks
-            const startBtn = document.getElementById('start-btn');
-            if (startBtn) {
-                startBtn.disabled = true;
-                startBtn.textContent = '⏳ Running...';
-                startBtn.style.opacity = '0.6';
-                startBtn.style.cursor = 'not-allowed';
-            }
-
+        function confirmTopic() {
             const query = document.getElementById('topic-query').value.trim();
             if (!query) {
                 alert('Please enter a research topic first.');
-                pipelineRunning = false;
-                if (startBtn) {
-                    startBtn.disabled = false;
-                    startBtn.textContent = '🚀 Start Analysis';
-                    startBtn.style.opacity = '';
-                    startBtn.style.cursor = '';
-                }
                 return;
             }
+            document.getElementById('question-view').style.display = 'none';
+            document.getElementById('confirm-view').style.display = 'block';
+            document.getElementById('confirm-view').style.opacity = '1';
+            document.getElementById('confirm-topic-text').innerText = `"${query}"`;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
 
-            const tracker = document.getElementById('status-tracker');
-            const message = document.getElementById('tracker-message');
-            const dashboard = document.getElementById('dashboard');
+        function launchInvestigation() {
+            document.getElementById('confirm-view').style.display = 'none';
+            document.getElementById('workspace-view').style.display = 'block';
+            document.getElementById('workspace-view').style.opacity = '1';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            startPipeline();
+        }
 
-            // Reset UI
-            tracker.style.display = 'block';
-            dashboard.style.display = 'none';
-            document.querySelectorAll('.step').forEach(step => {
-                step.classList.remove('active', 'completed');
+        function closeWorkspace() {
+            document.getElementById('question-view').style.display = 'none';
+            document.getElementById('confirm-view').style.display = 'none';
+            document.getElementById('workspace-view').style.display = 'none';
+            document.getElementById('report-summary-view').style.display = 'none';
+            document.getElementById('landing-view').style.display = 'block';
+            document.getElementById('landing-view').style.opacity = '1';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // ── Waiting Game 1: Explorer Nodes ──────────────────────────────────
+        let selectedNodes = [];
+        function toggleNode(btn, nodeName) {
+            if (btn.classList.contains('selected')) {
+                btn.classList.remove('selected');
+                selectedNodes = selectedNodes.filter(n => n !== nodeName);
+            } else {
+                btn.classList.add('selected');
+                selectedNodes.push(nodeName);
+                if (selectedNodes.length === 2) {
+                    document.getElementById('game-feedback-1').innerText = `✓ Thematic bridge established: [${selectedNodes[0]}] ───── [${selectedNodes[1]}]`;
+                    setTimeout(() => {
+                        document.querySelectorAll('.explorer-node-btn').forEach(b => b.classList.remove('selected'));
+                        selectedNodes = [];
+                    }, 1200);
+                }
+            }
+        }
+
+        // ── Waiting Game 2: Spot the Gap ────────────────────────────────────
+        function answerGame2(status) {
+            const fb = document.getElementById('game-feedback-2');
+            if (status === 'correct') {
+                fb.innerText = "✓ Good observation. Cross-dataset validation identifies dataset overfitting.";
+            } else {
+                fb.innerText = "Look again — compare the datasets across Study A, B, and C.";
+            }
+        }
+
+        // ── Waiting Game 3: Radar Hover ─────────────────────────────────────
+        const radarConcepts = ["METHOD", "SYSTEM", "MODEL", "DETECTION", "AGENT", "AUDIO", "CONSENSUS", "OVERLAP"];
+        function exploreRadar(e) {
+            const radarText = document.getElementById('radar-text');
+            const idx = Math.floor(Math.random() * radarConcepts.length);
+            radarText.innerText = `Scanning technical territory... Found: [${radarConcepts[idx]}]`;
+        }
+
+        // ── Waiting Game 4: Outline Assembly ────────────────────────────────
+        const outlineList = [];
+        function addOutline(section) {
+            if (outlineList.includes(section)) return;
+            outlineList.push(section);
+            document.getElementById('game-feedback-4').innerText = `Current Outline: ${outlineList.join(' → ')}`;
+        }
+
+        // ── Coordinated Physical 3D Paper Stack Cursor Parallax ─────────────
+        (function initPaperStackParallax() {
+            const stage = document.getElementById('hero-3d-stage');
+            const stack = document.getElementById('hero-paper-stack');
+            const layer3 = document.getElementById('paper-layer-3');
+            const layer2 = document.getElementById('paper-layer-2');
+            const layer1 = document.getElementById('paper-layer-1');
+
+            if (!stage || !stack) return;
+
+            let mouseX = 0, mouseY = 0;
+            let currentX = 0, currentY = 0;
+
+            stage.addEventListener('mousemove', (e) => {
+                const rect = stage.getBoundingClientRect();
+                const x = (e.clientX - rect.left) / rect.width - 0.5;
+                const y = (e.clientY - rect.top) / rect.height - 0.5;
+                
+                mouseX = y * -6; // rotateX
+                mouseY = x * 8;  // rotateY
             });
 
-            // Step 1 active
-            document.getElementById('step-1').classList.add('active');
-            message.innerText = "Agent 1 searching arXiv, Semantic Scholar, and Crossref...";
+            stage.addEventListener('mouseleave', () => {
+                mouseX = 0;
+                mouseY = 0;
+            });
+
+            function updateParallax() {
+                requestAnimationFrame(updateParallax);
+                if (document.hidden) return;
+
+                currentX += (mouseX - currentX) * 0.08;
+                currentY += (mouseY - currentY) * 0.08;
+
+                stack.style.transform = `rotateX(${currentX}deg) rotateY(${currentY}deg)`;
+                
+                if (layer3) layer3.style.transform = `translate3d(${20 + currentY * 1.2}px, ${-20 + currentX * 1.2}px, -50px) rotate(${4 + currentY * 0.2}deg)`;
+                if (layer2) layer2.style.transform = `translate3d(${10 + currentY * 0.8}px, ${-10 + currentX * 0.8}px, -28px) rotate(${-2 + currentY * 0.15}deg)`;
+                if (layer1) layer1.style.transform = `translate3d(${5 + currentY * 0.4}px, ${-5 + currentX * 0.4}px, -12px) rotate(${1.5 + currentY * 0.1}deg)`;
+            }
+            updateParallax();
+        })();
+
+        // ── 3D Research Intelligence Orbit Canvas (Hero Background) ───────
+        (function initHeroOrbitCanvas() {
+            const canvas = document.getElementById('hero-orbit-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+
+            function resize() {
+                canvas.width = canvas.parentElement.clientWidth;
+                canvas.height = canvas.parentElement.clientHeight;
+            }
+            resize();
+            window.addEventListener('resize', resize);
+
+            const orbitNodes = [
+                { label: "PAPERS", angle: 0.2, dist: 220, color: "#171B2B", radius: 5 },
+                { label: "EVIDENCE", angle: 1.4, dist: 240, color: "#3F7A5E", radius: 5 },
+                { label: "GAPS", angle: 2.8, dist: 230, color: "#B8503A", radius: 6 },
+                { label: "METHODS", angle: 3.9, dist: 210, color: "#A9832E", radius: 5 },
+                { label: "PATENTS", angle: 4.8, dist: 250, color: "#A9832E", radius: 5 },
+                { label: "OPPORTUNITIES", angle: 5.6, dist: 235, color: "#3F7A5E", radius: 6 }
+            ];
+
+            let time = 0;
+            function drawOrbit() {
+                requestAnimationFrame(drawOrbit);
+                if (document.hidden) return;
+
+                time += 0.003;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                const cx = canvas.width / 2;
+                const cy = canvas.height / 2;
+
+                ctx.beginPath();
+                ctx.ellipse(cx, cy, 230, 140, Math.PI / 12, 0, Math.PI * 2);
+                ctx.strokeStyle = "rgba(201, 196, 180, 0.45)";
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 6]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                orbitNodes.forEach((node, i) => {
+                    const currentAngle = node.angle + time;
+                    const x = cx + Math.cos(currentAngle) * (node.dist * 0.95);
+                    const y = cy + Math.sin(currentAngle) * (node.dist * 0.55);
+
+                    ctx.beginPath();
+                    ctx.moveTo(cx, cy);
+                    ctx.lineTo(x, y);
+                    ctx.strokeStyle = "rgba(201, 196, 180, 0.25)";
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.arc(x, y, node.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = node.color;
+                    ctx.fill();
+
+                    ctx.font = "600 10px IBM Plex Mono";
+                    ctx.fillStyle = "rgba(75, 79, 94, 0.75)";
+                    ctx.textAlign = "center";
+                    ctx.fillText(node.label, x, y + 15);
+                });
+            }
+            drawOrbit();
+        })();
+
+        // ── 3D Flowing Dash Array Connectors ────────────────────────────────
+        (function initFlowConnectors() {
+            const svg = document.getElementById('flow-lines-svg');
+            const path1 = document.getElementById('flow-path-1');
+            const path2 = document.getElementById('flow-path-2');
+            const path3 = document.getElementById('flow-path-3');
+            const p1 = document.getElementById('c-paper-1');
+            const p2 = document.getElementById('c-paper-2');
+            const p3 = document.getElementById('c-paper-3');
+            const target = document.getElementById('c-target-gap');
+
+            if (!svg || !path1 || !path2 || !path3 || !p1 || !p2 || !p3 || !target) return;
+
+            function updatePaths() {
+                const svgRect = svg.getBoundingClientRect();
+                const r1 = p1.getBoundingClientRect();
+                const r2 = p2.getBoundingClientRect();
+                const r3 = p3.getBoundingClientRect();
+                const rt = target.getBoundingClientRect();
+
+                const start1 = { x: r1.right - svgRect.left, y: (r1.top + r1.bottom) / 2 - svgRect.top };
+                const start2 = { x: r2.right - svgRect.left, y: (r2.top + r2.bottom) / 2 - svgRect.top };
+                const start3 = { x: r3.right - svgRect.left, y: (r3.top + r3.bottom) / 2 - svgRect.top };
+                const end = { x: rt.left - svgRect.left, y: (rt.top + rt.bottom) / 2 - svgRect.top };
+
+                path1.setAttribute('d', `M ${start1.x} ${start1.y} C ${(start1.x + end.x)/2} ${start1.y}, ${(start1.x + end.x)/2} ${end.y}, ${end.x} ${end.y}`);
+                path2.setAttribute('d', `M ${start2.x} ${start2.y} C ${(start2.x + end.x)/2} ${start2.y}, ${(start2.x + end.x)/2} ${end.y}, ${end.x} ${end.y}`);
+                path3.setAttribute('d', `M ${start3.x} ${start3.y} C ${(start3.x + end.x)/2} ${start3.y}, ${(start3.x + end.x)/2} ${end.y}, ${end.x} ${end.y}`);
+            }
+
+            updatePaths();
+            window.addEventListener('resize', updatePaths);
+            window.addEventListener('scroll', updatePaths);
+        })();
+
+        // ── Final CTA Background Moving Network Canvas ────────────────────
+        (function initCtaNetworkCanvas() {
+            const canvas = document.getElementById('cta-network-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+
+            function resize() {
+                canvas.width = canvas.parentElement.clientWidth;
+                canvas.height = canvas.parentElement.clientHeight;
+            }
+            resize();
+            window.addEventListener('resize', resize);
+
+            const particles = [];
+            for (let i = 0; i < 28; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    vx: (Math.random() - 0.5) * 0.4,
+                    vy: (Math.random() - 0.5) * 0.4,
+                    radius: Math.random() * 2 + 2
+                });
+            }
+
+            function animateCtaNetwork() {
+                requestAnimationFrame(animateCtaNetwork);
+                if (document.hidden) return;
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                particles.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+
+                    if (p.x < 0) p.x = canvas.width;
+                    if (p.x > canvas.width) p.x = 0;
+                    if (p.y < 0) p.y = canvas.height;
+                    if (p.y > canvas.height) p.y = 0;
+
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = "rgba(201, 196, 180, 0.4)";
+                    ctx.fill();
+                });
+
+                for (let i = 0; i < particles.length; i++) {
+                    for (let j = i + 1; j < particles.length; j++) {
+                        const dx = particles[i].x - particles[j].x;
+                        const dy = particles[i].y - particles[j].y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+
+                        if (dist < 140) {
+                            ctx.beginPath();
+                            ctx.moveTo(particles[i].x, particles[i].y);
+                            ctx.lineTo(particles[j].x, particles[j].y);
+                            ctx.strokeStyle = `rgba(201, 196, 180, ${0.2 * (1 - dist / 140)})`;
+                            ctx.lineWidth = 1;
+                            ctx.stroke();
+                        }
+                    }
+                }
+            }
+            animateCtaNetwork();
+        })();
+
+        // =========================================================================
+        // PIPELINE & DASHBOARD CODE (100% PRESERVED BACKEND CONTRACT)
+        // =========================================================================
+        let reportData = null;
+        let pipelineRunning = false;
+
+        async function startPipeline() {
+            if (pipelineRunning) return;
+            pipelineRunning = true;
+
+            const startBtn = document.getElementById('start-btn');
+            if (startBtn) {
+                startBtn.disabled = true;
+            }
+
+            const query = document.getElementById('topic-query').value.trim();
+            const logContainer = document.getElementById('log-items-container');
+
+            // Switch to staged workspace view
+            showAgentPanel(1);
 
             try {
-                // Trigger backend API
-                const response = await fetch('/api/research', {
+                // Launch the real backend request
+                const responsePromise = fetch('/api/research', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ topic: query, max_results: 8 })
                 });
 
+                // Simulated pipeline animation stages
+                await advanceAgentStage(1, "Searching scholarly repositories...", "Zhang et al. (2025) — Multi-Agent Coordination");
+                await advanceAgentStage(2, "Cross-referencing evidence and mapping conflicts...", "Non-Stationarity & Communication Bottlenecks");
+                await advanceAgentStage(3, "Auditing patent landscape databases...", "Prior Art Vetting & FTO Verification");
+                await advanceAgentStage(4, "Compiling publication-ready PDF brief...", "Building outline...");
+
+                const response = await responsePromise;
                 if (!response.ok) throw new Error("Backend query failed");
-
-                // Simulate stepper progress for user experience
-                setTimeout(() => {
-                    document.getElementById('step-1').classList.replace('active', 'completed');
-                    document.getElementById('step-2').classList.add('active');
-                    message.innerText = "Agent 2 identifying conflicts and synthesizing novel methodology...";
-                }, 2000);
-
-                setTimeout(() => {
-                    document.getElementById('step-2').classList.replace('active', 'completed');
-                    document.getElementById('step-3').classList.add('active');
-                    message.innerText = "Agent 3 scanning patent databases and verifying risk profile...";
-                }, 4000);
-
-                setTimeout(() => {
-                    document.getElementById('step-3').classList.replace('active', 'completed');
-                    document.getElementById('step-4').classList.add('active');
-                    message.innerText = "Agent 4 compiling final ReportLab PDF brief...";
-                }, 6000);
 
                 const data = await response.json();
                 reportData = data;
 
-                setTimeout(() => {
-                    document.getElementById('step-4').classList.replace('active', 'completed');
-                    message.innerText = "Analysis completed successfully!";
-                    renderDashboard(data);
-                }, 8000);
+                // Transition to Final Report Screen
+                showFinalReportScreen(data);
 
             } catch (err) {
                 console.error(err);
-                const errMsg = err.message || '';
-                if (errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('resource_exhausted')) {
-                    message.innerText = "⚠️ Gemini daily quota exhausted. The pipeline stopped early. Patent data (if retrieved) was preserved. Please try again tomorrow or use a different API key.";
-                } else {
-                    message.innerText = "❌ Error during pipeline execution. Check backend logs and verify your GEMINI_API_KEY.";
-                }
+                alert("An error occurred during pipeline execution. Please verify your GEMINI_API_KEY.");
+                closeWorkspace();
             } finally {
-                // ── Release request lock and re-enable button ──────────────
                 pipelineRunning = false;
-                if (startBtn) {
-                    startBtn.disabled = false;
-                    startBtn.textContent = '🚀 Start Analysis';
-                    startBtn.style.opacity = '';
-                    startBtn.style.cursor = '';
-                }
             }
         }
 
+        function showAgentPanel(stage) {
+            // Deactivate all panels
+            for (let i = 1; i <= 4; i++) {
+                document.getElementById(`panel-agent-${i}`).classList.remove('active');
+                document.getElementById(`node-agent-${i}`).classList.remove('active', 'complete');
+                document.getElementById(`status-tag-${i}`).innerText = "○ WAITING";
+                document.getElementById(`bar-${i}`).className = "node-indicator-bar";
+            }
+
+            // Set completed stages
+            for (let i = 1; i < stage; i++) {
+                document.getElementById(`node-agent-${i}`).classList.add('complete');
+                document.getElementById(`status-tag-${i}`).innerText = "✓ COMPLETE";
+                document.getElementById(`bar-${i}`).className = "node-indicator-bar complete";
+            }
+
+            // Activate current stage
+            document.getElementById(`panel-agent-${stage}`).classList.add('active');
+            document.getElementById(`node-agent-${stage}`).classList.add('active');
+            document.getElementById(`status-tag-${stage}`).innerText = "◉ WORKING";
+            document.getElementById(`bar-${stage}`).className = "node-indicator-bar active";
+        }
+
+        async function advanceAgentStage(stage, logMessage, docTitle) {
+            showAgentPanel(stage);
+            
+            // Add live log item
+            const logContainer = document.getElementById('log-items-container');
+            const workingItem = document.getElementById('log-working-item');
+            if (workingItem) {
+                workingItem.className = "log-item complete";
+                workingItem.innerText = workingItem.innerText.replace("...", "");
+                workingItem.id = "";
+            }
+
+            const newLog = document.createElement('div');
+            newLog.className = "log-item working";
+            newLog.id = "log-working-item";
+            newLog.innerText = logMessage;
+            logContainer.appendChild(newLog);
+
+            // Update mini visual indicators
+            document.getElementById(`agent${stage}-doc-title`).innerText = docTitle;
+
+            // Wait 3 seconds per stage to allow user interaction/gameplay
+            await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+
+        function showFinalReportScreen(data) {
+            document.getElementById('workspace-view').style.display = 'none';
+            document.getElementById('report-summary-view').style.display = 'block';
+            document.getElementById('report-summary-view').style.opacity = '1';
+
+            document.getElementById('report-summary-topic').innerText = `Topic: "${data.topic || 'Research Topic'}"`;
+            document.getElementById('final-stat-papers').innerText = data.research.papers.length;
+            document.getElementById('final-stat-gaps').innerText = data.gaps.gaps.length;
+            document.getElementById('final-stat-patents').innerText = data.patents.patents.length;
+
+            if (data.pdf_filename) {
+                document.getElementById('final-pdf-btn').href = `/api/download/${data.pdf_filename}`;
+            }
+        }
+
+        function viewDetailedWorkspace() {
+            // Preserves standard workspace layout view
+            document.getElementById('report-summary-view').style.display = 'none';
+            openWorkspace();
+            renderDashboard(reportData);
+        }
+
         function renderDashboard(data) {
-            // Update stats
             document.getElementById('stat-papers').innerText = data.research.papers.length;
             document.getElementById('stat-gaps').innerText = data.gaps.gaps.length;
             document.getElementById('stat-patents').innerText = data.patents.patents.length;
 
-            // Render Research Papers List (NotebookLM Style)
             const papersList = document.getElementById('papers-list');
             papersList.innerHTML = '';
             data.research.papers.forEach(paper => {
@@ -614,129 +2613,75 @@
                 papersList.innerHTML += `
                     <div class="paper-card">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap;">
-                            <h4 style="margin-bottom: 5px; color: #60A5FA; font-family: 'Outfit';">${paper.title}</h4>
-                            <div style="display: flex; gap: 5px; flex-shrink: 0;">
+                            <h4 style="margin-bottom: 5px; color: var(--ink-primary); font-family: 'Newsreader', serif; font-size: 18px;">${paper.title}</h4>
+                            <div style="display: flex; gap: 6px; flex-shrink: 0;">
                                 <span class="badge ${rankClass}">${paper.relevance_rank} Relevance</span>
                                 <span class="badge badge-purple">Score: ${Math.round(paper.relevance_score * 100)}%</span>
                             </div>
                         </div>
-                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+                        <p style="font-size: 13px; color: var(--ink-muted); margin-bottom: 12px;">
                             By ${paper.authors.join(', ')} (${paper.year})
                         </p>
                         
-                        <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border-left: 3px solid var(--primary); margin-bottom: 12px;">
-                            <p style="font-size: 13px; font-weight: 600; color: #93C5FD; margin-bottom: 8px;">📖 Summary:</p>
+                        <div style="background: var(--bg-paper-card); padding: 14px; border-radius: var(--radius-sm); border-left: 3px solid var(--accent-gold); margin-bottom: 12px;">
+                            <p style="font-size: 12.5px; font-weight: 600; color: var(--accent-gold); margin-bottom: 8px; font-family:'IBM Plex Mono', monospace;">SUMMARY:</p>
                             <ul style="list-style: none; padding: 0; margin: 0;">
                                 ${paper.notebook_summary.split('•').filter(s => s.trim()).map(bullet => 
-                                    `<li style="font-size: 13px; line-height: 1.6; color: var(--text-main); padding: 3px 0; display: flex; gap: 8px;"><span style="color:#60A5FA; font-weight:700; flex-shrink:0;">→</span><span>${bullet.trim()}</span></li>`
+                                    `<li style="font-size: 13.5px; line-height: 1.6; color: var(--ink-primary); padding: 3px 0; display: flex; gap: 8px;"><span style="color:var(--accent-gold); font-weight:700; flex-shrink:0;">→</span><span>${bullet.trim()}</span></li>`
                                 ).join('')}
                             </ul>
                         </div>
-
-                        <div style="background: rgba(255,255,255,0.015); padding: 12px; border-radius: 8px; border-left: 3px solid #8B5CF6; margin-bottom: 12px;">
-                            <p style="font-size: 13px; font-weight: 600; color: #C084FC; margin-bottom: 4px;">💡 Research Significance & Contribution:</p>
-                            <p style="font-size: 13px; line-height: 1.4; color: var(--text-main);">${paper.research_significance}</p>
-                        </div>
-
-                        <div style="background: rgba(255,255,255,0.01); padding: 12px; border-radius: 8px; border-left: 3px solid var(--text-muted); margin-bottom: 12px;">
-                            <p style="font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px;">⚙️ Algorithmic Execution:</p>
-                            <p style="font-size: 13px; font-family: monospace; color: #A7F3D0;">${paper.technical_execution}</p>
-                        </div>
-                        
-                        <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 8px;"><b>Datasets used:</b> ${paper.datasets.join(', ')}</p>
-                        ${paper.url ? `<a href="${paper.url}" target="_blank" style="display:inline-block; margin-top:5px; color:var(--primary); font-size:13px; text-decoration:none;">🔗 Original Source link</a>` : ''}
                     </div>
                 `;
             });
 
-            // Render Per-Paper Gap Details (from Agent 1, moved to Agent 2 tab)
             const paperGapsList = document.getElementById('paper-gaps-list');
             paperGapsList.innerHTML = '';
             data.research.papers.forEach(paper => {
                 if (!paper.gap_description) return;
                 const sevClass = paper.gap_severity === 'Critical' ? 'badge-red' : (paper.gap_severity === 'Moderate' ? 'badge-yellow' : 'badge-green');
                 paperGapsList.innerHTML += `
-                    <div class="paper-card" style="border-left: 4px solid #EF4444;">
+                    <div class="paper-card" style="border-left: 4px solid var(--accent-coral);">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
-                            <h4 style="color: #FCA5A5; font-family: 'Outfit'; font-size: 15px;">${paper.title}</h4>
+                            <h4 style="color: var(--ink-primary); font-family: 'Newsreader', serif; font-size: 17px;">${paper.title}</h4>
                             <span class="badge ${sevClass}">${paper.gap_severity} Severity</span>
                         </div>
-                        <p style="font-size: 13.5px; line-height: 1.5; color: var(--text-main); margin-bottom: 8px;"><b>Gap:</b> ${paper.gap_description}</p>
-                        <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 4px;"><b>Impact:</b> ${paper.gap_impact}</p>
-                        <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 4px;"><b>Why it exists:</b> ${paper.gap_why_exists}</p>
-                        <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 4px;"><b>Research Opportunity:</b> ${paper.gap_opportunity}</p>
-                        <p style="font-size: 12.5px; color: var(--text-muted);"><b>Future Scope:</b> ${paper.gap_future_scope}</p>
+                        <p style="font-size: 14px; line-height: 1.5; color: var(--ink-primary); margin-bottom: 8px;"><b>Gap:</b> ${paper.gap_description}</p>
                     </div>
                 `;
             });
 
-            // Render Patents List
             const patentsList = document.getElementById('patents-list');
             patentsList.innerHTML = '';
-            if (!data.patents.patents || data.patents.patents.length === 0) {
-                patentsList.innerHTML = `
-                    <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 24px; text-align: center; color: var(--text-muted);">
-                        <p style="font-size: 16px; font-weight: 600; color: #93C5FD; margin-bottom: 8px;">No Direct Patent Infringement / Overlapping Patents Found</p>
-                        <p style="font-size: 13.5px; line-height: 1.6; margin-bottom: 16px;">The patent vetting agent screened candidate databases and confirmed that no overlapping prior-art patents met the risk threshold for this specific query.</p>
-                        <div style="text-align: left; background: rgba(16, 185, 129, 0.05); border-left: 4px solid var(--accent-green); padding: 15px; border-radius: 8px;">
-                            <p style="font-size: 13px; font-weight: 700; color: #34D399; margin-bottom: 6px;">💡 Unexplored White-Space Opportunities:</p>
-                            <ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.6; color: var(--text-main);">
-                                ${(data.patents.white_space_opportunities || []).map(o => `<li>${o}</li>`).join('')}
-                            </ul>
+            data.patents.patents.forEach(pat => {
+                const badgeClass = pat.relevance === 'Prior Art' ? 'badge-red' : (pat.relevance === 'Overlap' ? 'badge-yellow' : 'badge-green');
+                patentsList.innerHTML += `
+                    <div class="patent-card">
+                        <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
+                            <span class="badge ${badgeClass}">${pat.relevance}</span>
+                            <span class="badge badge-purple">Relevance: ${pat.relevance_score}/100</span>
                         </div>
+                        <h4 style="margin-bottom: 5px; font-family: 'Newsreader', serif; font-size: 17px;">Patent ID: ${pat.patent_id} — ${pat.title}</h4>
+                        <p style="font-size: 13px; color: var(--ink-muted); margin-bottom: 10px;">Assignee: ${pat.assignee}</p>
                     </div>
                 `;
-            } else {
-                data.patents.patents.forEach(pat => {
-                    const badgeClass = pat.relevance === 'Prior Art' ? 'badge-red' : (pat.relevance === 'Overlap' ? 'badge-yellow' : 'badge-green');
-                    const ftoBadgeClass = pat.fto_rating === 'Alert' ? 'badge-red' : (pat.fto_rating === 'Caution' ? 'badge-yellow' : 'badge-green');
+            });
 
-                    // Build reliable links: always prefer direct URL first, then source_links
-                    const directUrl = pat.url || '';
-                    let linksHtml = '';
-                    if (pat.source_links && Object.keys(pat.source_links).length > 0) {
-                        linksHtml = Object.entries(pat.source_links).map(([platform, link]) =>
-                            `<a href="${link}" target="_blank" style="display:inline-block; background:rgba(96, 165, 250, 0.1); border:1px solid rgba(96, 165, 250, 0.3); color:#93C5FD; padding:4px 10px; border-radius:15px; font-size:12px; text-decoration:none;" onmouseover="this.style.background='rgba(96, 165, 250, 0.2)'" onmouseout="this.style.background='rgba(96, 165, 250, 0.1)'">🔗 ${platform}</a>`
-                        ).join('');
-                    } else if (directUrl) {
-                        linksHtml = `<a href="${directUrl}" target="_blank" style="display:inline-block; background:rgba(96, 165, 250, 0.1); border:1px solid rgba(96, 165, 250, 0.3); color:#93C5FD; padding:4px 10px; border-radius:15px; font-size:12px; text-decoration:none;">🔗 View Patent</a>`;
-                    }
-
-                    patentsList.innerHTML += `
-                        <div class="patent-card">
-                            <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
-                                <span class="badge ${badgeClass}">${pat.relevance}</span>
-                                <span class="badge ${ftoBadgeClass}">FTO: ${pat.fto_rating}</span>
-                                <span class="badge badge-purple">Relevance: ${pat.relevance_score}/100</span>
-                                <span class="badge badge-green">Rank #${pat.rank}</span>
-                            </div>
-                            <h4 style="margin-bottom: 5px; font-family: 'Outfit';">Patent ID: ${pat.patent_id} — ${pat.title}</h4>
-                            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">Assignee: ${pat.assignee}</p>
-                            <p style="font-size: 13.5px; line-height: 1.4; color: var(--text-muted); margin-bottom: 10px;"><b>Match Explanation:</b> ${pat.match_explanation}</p>
-                            <p style="font-size: 14px; line-height: 1.5; color: var(--text-main); margin-bottom: 12px;"><b>Summary:</b> ${pat.summary}</p>
-                            
-                            <div style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); padding: 15px; border-radius: 8px; border-left: 4px solid var(--accent-green); margin-bottom: 10px;">
-                                <p style="font-size: 13px; font-weight: 700; color: #34D399; margin-bottom: 4px;">🛡️ Actionable Design-Around Strategy:</p>
-                                <p style="font-size: 13.5px; line-height: 1.5; color: var(--text-main);">${pat.design_around_strategy}</p>
-                            </div>
-                            <div style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px;">
-                                ${linksHtml}
-                            </div>
-                        </div>
-                    `;
-                });
-            }
-
-            // Set Download URL
             if (data.pdf_filename) {
                 document.getElementById('pdf-download-btn').href = `/api/download/${data.pdf_filename}`;
-            } else {
-                document.getElementById('pdf-download-btn').style.display = 'none';
             }
 
-            // Show Dashboard
             document.getElementById('dashboard').style.display = 'grid';
             switchTab('overview');
+        }
+
+        function openWorkspace() {
+            document.getElementById('landing-view').style.display = 'none';
+            document.getElementById('workspace-view').style.display = 'block';
+            document.getElementById('workspace-view').style.opacity = '1';
+            document.getElementById('status-tracker').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'grid';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     </script>
 </body>

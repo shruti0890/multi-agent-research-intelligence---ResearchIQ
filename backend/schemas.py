@@ -93,7 +93,15 @@ class PaperMetadata(BaseModel):
     keyword_score: float = Field(default=0.0, description="Keyword overlap score (0.0–1.0)")
     domain_penalty: float = Field(default=1.0, description="Domain mismatch multiplier (1.0 = no penalty, <1.0 = penalized)")
     domain_mismatch: bool = Field(default=False, description="True if domain mismatch penalty was applied to this paper")
-    final_relevance_score: float = Field(default=0.0, description="Final composite relevance score after all penalties: semantic*keyword*domain_penalty")
+    final_relevance_score: float = Field(default=0.0, description="Final composite relevance score after all penalties")
+    domain_match: bool = Field(default=True, description="True if paper passed the domain gate")
+    agent_match: bool = Field(default=True, description="True if paper passed the agent concept gate")
+    multiagent_match: bool = Field(default=True, description="True if paper passed the multi-agent concept gate")
+    core_concept_match: bool = Field(default=True, description="True if paper passed the core concept gate")
+    technical_concept_match: bool = Field(default=True, description="True if paper passed the technical mechanism gate")
+    relevance_status: str = Field(default="ACCEPTED", description="'ACCEPTED' | 'REJECTED_OFF_TOPIC' | 'REJECTED'")
+    relevance_level: str = Field(default="DIRECT_MATCH", description="'DIRECT_MATCH' | 'STRONG_RELATED' | 'ADJACENT' | 'REJECTED'")
+    why_selected: str = Field(default="", description="Explanation of why this paper was selected for the topic")
 
 
 class CandidateDiagnostic(BaseModel):
@@ -105,6 +113,13 @@ class CandidateDiagnostic(BaseModel):
     domain_penalty: float = Field(default=1.0, description="Domain mismatch multiplier")
     domain_mismatch: bool = Field(default=False, description="Whether domain mismatch was detected")
     final_relevance_score: float = Field(default=0.0, description="Final composite relevance score")
+    domain_match: bool = Field(default=True, description="True if candidate passed domain gate")
+    agent_match: bool = Field(default=True, description="True if candidate passed agent gate")
+    multiagent_match: bool = Field(default=True, description="True if candidate passed multiagent gate")
+    core_concept_match: bool = Field(default=True, description="True if candidate passed core concept gate")
+    technical_concept_match: bool = Field(default=True, description="True if candidate passed technical gate")
+    relevance_status: str = Field(default="ACCEPTED", description="'ACCEPTED' | 'REJECTED_OFF_TOPIC' | 'REJECTED'")
+    relevance_level: str = Field(default="DIRECT_MATCH", description="'DIRECT_MATCH' | 'STRONG_RELATED' | 'ADJACENT' | 'REJECTED'")
     access_status: str = Field(
         default="UNAVAILABLE",
         description="'FULL_TEXT_AVAILABLE' | 'ABSTRACT_ONLY' | 'UNAVAILABLE' | 'ACCESS_CHECK_FAILED'"
@@ -183,6 +198,14 @@ class PatentInfo(BaseModel):
     sources: List[str] = Field(default_factory=list, description="All sources providing this patent (merged)")
     source_url: str = Field(default="", description="Direct URL to source patent record")
     retrieval_status: str = Field(default="SUCCESS", description="Record retrieval status")
+
+    # Strict hard gate & semantic relevance diagnostic fields
+    relevance_level: str = Field(default="HIGH_RELEVANCE", description="'HIGH_RELEVANCE' | 'MEDIUM_RELEVANCE' | 'REJECTED'")
+    domain_match: bool = Field(default=True, description="True if patent passed the domain relevance gate")
+    technical_match: bool = Field(default=True, description="True if patent passed the technical concept gate")
+    why_relevant: str = Field(default="", description="Concise explanation of conceptual and technical relevance")
+    rejection_reason: Optional[str] = Field(default=None, description="Detailed reason if patent failed gates or threshold")
+    relevance_status: str = Field(default="accepted", description="'accepted' | 'rejected'")
 
 class Agent3PatentOutput(BaseModel):
     patents: List[PatentInfo]

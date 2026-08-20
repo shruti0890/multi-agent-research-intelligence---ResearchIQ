@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from schemas import ProjectReportState
 from agents.agent_research import fetch_arxiv_papers
 from agents.agent_gap import cluster_and_analyze_gaps
-from agents.agent_patent import search_and_classify_patents
+from agents.agent_patent import run_patent_agent
 from agents.agent_compile import compile_final_report
 
 # Load environment variables
@@ -69,7 +69,7 @@ def trigger_agent_pipeline(request: ResearchRequest):
     
     # 3. Agent 3: Patent Discovery
     print("Executing Agent 3: Patent Landscape Check...")
-    patent_out = search_and_classify_patents(gap_out, topic, research_out)
+    patent_out = run_patent_agent(topic=topic, max_results=request.max_results)
     
     # 4. Construct Unified State
     state = ProjectReportState(
