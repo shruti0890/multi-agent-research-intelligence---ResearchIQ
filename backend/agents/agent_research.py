@@ -546,6 +546,7 @@ def _gemini_generate_with_retry(
         model=model,
         max_retries=max_retries,
         agent_label=agent_label,
+        client=client,
     )
 
 

@@ -16,12 +16,13 @@ import matplotlib
 matplotlib.use('Agg') # Non-interactive backend
 import matplotlib.pyplot as plt
 
-from schemas import ProjectReportState, GeminiQuotaExhaustedError  # type: ignore
-from agents.agent_utils import execute_gemini_with_retry, get_gemini_model  # type: ignore
+from schemas import ProjectReportState, GeminiQuotaExhaustedError, GeminiError
+from agents.agent_utils import execute_gemini_with_retry, get_gemini_model, get_gemini_client  # type: ignore
 
 load_dotenv(override=True)
 
 GEMINI_MODEL = get_gemini_model()
+_get_client = get_gemini_client
 
 # Quota exhaustion detection (same logic as other agents)
 _QUOTA_SIGNALS = [
@@ -58,6 +59,7 @@ def _gemini_generate_with_retry(
         model=model,
         max_retries=max_retries,
         agent_label=agent_label,
+        client=client,
     )
 
 
@@ -295,7 +297,7 @@ def compile_final_report(state: ProjectReportState, output_dir: str = ".") -> st
     
     try:
         response_text = _gemini_generate_with_retry(
-            client=None,
+            client=_get_client(),
             model=GEMINI_MODEL,
             prompt=prompt,
             config=types.GenerateContentConfig(response_mime_type="application/json"),

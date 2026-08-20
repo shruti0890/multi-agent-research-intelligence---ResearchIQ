@@ -13,12 +13,32 @@ from google.genai import types
 from dotenv import load_dotenv
 
 from schemas import Agent1ResearchOutput, Agent2GapOutput, ResearchGap, NovelMethodProposal, GeminiQuotaExhaustedError  # type: ignore
+from agents.agent_utils import get_gemini_model, execute_gemini_with_retry, get_gemini_client  # type: ignore
 
 # Load environment variables — explicit path so it works when server runs from project root
 _env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
 load_dotenv(dotenv_path=_env_path, override=True)
 
 GEMINI_MODEL = get_gemini_model()
+_get_client = get_gemini_client
+
+def _gemini_generate_with_retry(
+    client,
+    model: str,
+    prompt: str,
+    config=None,
+    max_retries: int = 3,
+    agent_label: str = "Agent2",
+) -> str:
+    """Thin wrapper forwarding to centralized execute_gemini_with_retry."""
+    return execute_gemini_with_retry(
+        prompt=prompt,
+        config=config,
+        model=model,
+        max_retries=max_retries,
+        agent_label=agent_label,
+        client=client,
+    )
 
 
 _QUOTA_SIGNALS = [

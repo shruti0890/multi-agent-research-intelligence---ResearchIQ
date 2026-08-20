@@ -14,11 +14,32 @@ from google.genai import types
 from dotenv import load_dotenv
 
 from schemas import Agent1ResearchOutput, Agent2GapOutput, Agent3PatentOutput, PatentInfo, GeminiQuotaExhaustedError  # type: ignore
-from agents.agent_utils import execute_gemini_with_retry, get_gemini_model  # type: ignore
+from agents.agent_utils import execute_gemini_with_retry, get_gemini_model, get_gemini_client  # type: ignore
 
 # Load environment variables
 _env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
 load_dotenv(dotenv_path=_env_path, override=True)
+
+GEMINI_MODEL = get_gemini_model()
+_get_client = get_gemini_client
+
+def _gemini_generate_with_retry(
+    client,
+    model: str,
+    prompt: str,
+    config=None,
+    max_retries: int = 3,
+    agent_label: str = "Agent3",
+) -> str:
+    """Thin wrapper forwarding to centralized execute_gemini_with_retry."""
+    return execute_gemini_with_retry(
+        prompt=prompt,
+        config=config,
+        model=model,
+        max_retries=max_retries,
+        agent_label=agent_label,
+        client=client,
+    )
 
 # Valid patent ID regex: e.g. US10928345B2, US20230343342A1, EP3456789A1, WO2009034499A1, DE102010022307A1
 _VALID_PATENT_RE = re.compile(r'^(US|EP|WO|CN|JP|DE|FR|GB|KR|CA|NL|RU)\d{5,}([A-Z]\d*)?$', re.IGNORECASE)
@@ -77,68 +98,65 @@ def get_patent_source_links(patent_id: str, title: str = "", url: str = "") -> d
 
 
 # ---------------------------------------------------------------------------
-# 1. Pure Algorithmic Universal Patent Query Expansion (Any Domain)
+# 1. Domain-Aware & Universal Patent Query Expansion (Any Domain)
 # ---------------------------------------------------------------------------
 
 def expand_patent_queries(topic: str) -> list:
     """
-    Generates domain-agnostic, semantically rich patent search queries for ANY domain.
-    Does NOT use hardcoded domain categories or static lists.
-    Uses pure algorithmic n-gram extraction, compound pairing, syntactic phrase patterns,
-    and patent-specific terminology transformations to handle any user input.
+    Generates high-precision, domain-aware patent search queries (5 to 8 total)
+    derived strictly from the original user topic.
+    Includes the original topic, key technical phrase combinations, and standard domain synonyms.
     """
-    stopwords = {"and", "for", "the", "with", "using", "of", "in", "on", "a", "an",
-                 "via", "to", "from", "by", "at", "or", "as", "is", "are", "into",
-                 "through", "towards", "approach", "novel", "new", "improved", "study",
-                 "based", "system", "method", "apparatus", "device", "process"}
-
     raw_topic = topic.strip()
     topic_lower = raw_topic.lower()
-    clean_words = [w for w in re.sub(r'[^a-zA-Z0-9\s]', '', topic_lower).split()
-                   if len(w) > 1 and w not in stopwords]
+    clean_topic = re.sub(r'[^a-zA-Z0-9\s\-]', ' ', topic_lower)
+    words = [w for w in clean_topic.split() if len(w) > 1 and w not in {
+        "and", "for", "the", "with", "using", "of", "in", "on", "a", "an",
+        "via", "to", "from", "by", "at", "or", "as", "is", "are", "into"
+    }]
 
     queries = [raw_topic]
-    clean_topic = " ".join(clean_words)
-    if clean_topic and clean_topic != topic_lower:
-        queries.append(clean_topic)
 
     def _add(q):
-        if q and q.strip() and q.lower() not in [x.lower() for x in queries] and len(queries) < 14:
-            queries.append(q.strip())
+        if q and q.strip():
+            q_clean = q.strip()
+            if q_clean.lower() not in [x.lower() for x in queries] and len(queries) < 8:
+                queries.append(q_clean)
 
-    # 1. Patent-specific technical suffixes applied dynamically
-    if len(clean_words) >= 1:
-        core_phrase = " ".join(clean_words[:4])
-        _add(f"{core_phrase} system")
-        _add(f"{core_phrase} apparatus")
-        _add(f"{core_phrase} method")
-        _add(f"{core_phrase} device")
-        _add(f"{core_phrase} process")
+    # Domain-specific high-precision synonym anchors
+    if any(k in topic_lower for k in ["deepfake", "audio spoofing", "voice spoof", "synthetic speech", "audio fake"]):
+        for s in ["voice spoofing detection", "synthetic speech detection", "audio forgery detection", "synthetic voice verification"]:
+            _add(s)
+    elif any(k in topic_lower for k in ["agentic", "multiagent", "multi-agent", "autonomous agent"]):
+        for s in ["agentic ai", "ai agents", "multi-agent ai", "multi-agent systems", "autonomous ai agents"]:
+            _add(s)
+    elif any(k in topic_lower for k in ["medical image", "segmentation", "mri", "tumor", "ct scan"]):
+        for s in ["medical image segmentation", "mri segmentation system", "neural image segmentation", "medical image diagnostic method"]:
+            _add(s)
+    elif any(k in topic_lower for k in ["financial", "finance", "stock", "forecasting", "market"]):
+        for s in ["financial forecasting model", "financial time series prediction", "market prediction system", "neural financial forecasting"]:
+            _add(s)
 
-    # 2. Bigram and Trigram permutations for multi-word queries
-    if len(clean_words) >= 2:
-        for i in range(len(clean_words) - 1):
-            pair = f"{clean_words[i]} {clean_words[i+1]}"
-            _add(pair)
-            _add(f"{pair} system")
-            _add(f"{pair} method")
+    # Universal structural expansions for any domain
+    if len(words) >= 2:
+        phrase = " ".join(words[:4])
+        _add(f"{phrase} system")
+        _add(f"{phrase} method")
+        _add(f"{phrase} apparatus")
+        if len(words) >= 3:
+            _add(f"{words[0]} {words[1]} {words[2]}")
+            _add(f"{words[-2]} {words[-1]} system")
 
-        if len(clean_words) >= 3:
-            for i in range(len(clean_words) - 2):
-                tri = f"{clean_words[i]} {clean_words[i+1]} {clean_words[i+2]}"
-                _add(tri)
+    while len(queries) < 5:
+        if len(words) >= 1:
+            core = " ".join(words[:3])
+            _add(f"{core} process")
+            _add(f"{core} technology")
+            _add(f"{core} device")
+            _add(f"{core} analysis")
+        break
 
-        # First and last keyword anchor pairing
-        if len(clean_words) > 2:
-            _add(f"{clean_words[0]} {clean_words[-1]}")
-
-    # 3. Individual significant keyword anchors
-    for w in clean_words:
-        if len(w) > 2:
-            _add(w)
-            _add(f"{w} technology")
-
-    return queries[:14]
+    return queries[:8]
 
 
 # ---------------------------------------------------------------------------
@@ -588,6 +606,8 @@ def _fetch_epmc_patents(expanded_queries: list, original_topic: str = "") -> tup
             if not patents:
                 return [], "SOURCE_UNAVAILABLE"
         except Exception:
+            if not patents:
+                return [], "SOURCE_UNAVAILABLE"
             continue
 
     if patents:
@@ -677,11 +697,15 @@ def compute_patent_relevance(
     weights: dict = None
 ) -> int:
     """
-    Computes deterministic technical relevance score (0–100) for a patent.
-    Uses sub-word matching and semantic term overlaps to evaluate relevance across ANY domain.
+    Computes deterministic technical relevance score (0–100) for a patent against the original user topic.
+    Combines:
+    - Title precision and phrase matching (40%)
+    - Abstract technical and contextual overlap (40%)
+    - Claims domain specificity (20%)
+    Strictly penalizes off-topic patents that lack technical overlap with the topic.
     """
     if weights is None:
-        weights = {"title": 0.45, "abstract": 0.35, "claims": 0.20}
+        weights = {"title": 0.40, "abstract": 0.40, "claims": 0.20}
     if expanded_queries is None:
         expanded_queries = expand_patent_queries(topic)
 
@@ -693,8 +717,9 @@ def compute_patent_relevance(
     topic_clean = re.sub(r'[^a-zA-Z0-9\s]', '', topic.lower())
     topic_words = [w for w in topic_clean.split() if len(w) > 2 and w not in stopwords]
     if not topic_words:
-        topic_words = ["patent"]
+        topic_words = [topic_clean] if topic_clean else ["patent"]
 
+    # Gather all relevant technical anchor words from topic and expansions
     all_query_words = set(topic_words)
     for q in expanded_queries:
         all_query_words.update([w for w in re.sub(r'[^a-zA-Z0-9\s]', '', q.lower()).split() if len(w) > 2 and w not in stopwords])
@@ -703,43 +728,48 @@ def compute_patent_relevance(
     abstract_text = patent.get("abstract", "").lower()
     claims_text = (patent.get("claims", "") or patent.get("description", "")).lower()
 
-    # 1. Title matching (exact word + substring matches)
-    title_word_set = set(re.sub(r'[^a-zA-Z0-9\s]', '', title_text).split())
-    exact_topic_title = sum(1 for tw in topic_words if tw in title_word_set or any(tw in w or w in tw for w in title_word_set if len(w) > 3))
-    query_title_hits = sum(1 for qw in all_query_words if qw in title_word_set or any(qw in w for w in title_word_set if len(w) > 3))
-    title_score = min(1.0, (exact_topic_title * 1.5 + query_title_hits * 0.4) / max(1, len(topic_words)))
+    title_words = set(re.sub(r'[^a-zA-Z0-9\s]', '', title_text).split())
+    abstract_words = set(re.sub(r'[^a-zA-Z0-9\s]', '', abstract_text).split())
+    claims_words = set(re.sub(r'[^a-zA-Z0-9\s]', '', claims_text).split()) if claims_text else set()
 
-    # 2. Abstract matching
-    abstract_word_set = set(re.sub(r'[^a-zA-Z0-9\s]', '', abstract_text).split())
-    exact_topic_abs = sum(1 for tw in topic_words if tw in abstract_word_set or any(tw in w or w in tw for w in abstract_word_set if len(w) > 3))
-    query_abs_hits = sum(1 for qw in all_query_words if qw in abstract_word_set or any(qw in w for w in abstract_word_set if len(w) > 3))
-    abstract_score = min(1.0, (exact_topic_abs * 1.2 + query_abs_hits * 0.3) / max(1, len(topic_words) * 2))
+    # 1. Direct Topic Overlaps
+    topic_in_title = sum(1 for tw in topic_words if tw in title_words or any(tw in w or w in tw for w in title_words if len(w) > 3))
+    topic_in_abstract = sum(1 for tw in topic_words if tw in abstract_words or any(tw in w or w in tw for w in abstract_words if len(w) > 3))
+    topic_in_claims = sum(1 for tw in topic_words if tw in claims_words or any(tw in w or w in tw for w in claims_words if len(w) > 3))
 
-    # 3. Claims / Full text
-    if claims_text:
-        claims_word_set = set(re.sub(r'[^a-zA-Z0-9\s]', '', claims_text).split())
-        claims_hits = sum(1 for qw in all_query_words if qw in claims_word_set)
-        claims_score = min(1.0, claims_hits / max(1, len(topic_words) * 2))
-    else:
-        claims_score = abstract_score * 0.9
+    # 2. Expanded Query Keyword Hits
+    exp_in_title = sum(1 for qw in all_query_words if qw in title_words or any(qw in w for w in title_words if len(w) > 3))
+    exp_in_abstract = sum(1 for qw in all_query_words if qw in abstract_words or any(qw in w for w in abstract_words if len(w) > 3))
+    exp_in_claims = sum(1 for qw in all_query_words if qw in claims_words or any(qw in w for w in claims_words if len(w) > 3))
 
-    # Whole topic phrase bonus
-    phrase_bonus = 0.20 if topic_clean in title_text or topic_clean in abstract_text else 0.0
+    # 3. Whole Phrase Bonuses
+    phrase_in_title = 1.0 if topic_clean in title_text else (0.5 if any(q.lower() in title_text for q in expanded_queries if len(q) > 8) else 0.0)
+    phrase_in_abstract = 1.0 if topic_clean in abstract_text else (0.5 if any(q.lower() in abstract_text for q in expanded_queries if len(q) > 8) else 0.0)
 
-    w_title = weights.get("title", 0.45)
-    w_abstract = weights.get("abstract", 0.35)
+    # Component Scores (0.0 to 1.0)
+    title_score = min(1.0, (topic_in_title * 1.5 + exp_in_title * 0.4 + phrase_in_title * 1.0) / max(1, len(topic_words)))
+    abstract_score = min(1.0, (topic_in_abstract * 1.2 + exp_in_abstract * 0.3 + phrase_in_abstract * 0.8) / max(1, len(topic_words) * 1.5))
+    claims_score = min(1.0, (topic_in_claims * 1.0 + exp_in_claims * 0.3) / max(1, len(topic_words))) if claims_text else abstract_score * 0.85
+
+    w_title = weights.get("title", 0.40)
+    w_abstract = weights.get("abstract", 0.40)
     w_claims = weights.get("claims", 0.20)
     total_w = w_title + w_abstract + w_claims or 1.0
 
-    composite = (((w_title * title_score) + (w_abstract * abstract_score) + (w_claims * claims_score)) / total_w) + phrase_bonus
+    raw_composite = ((w_title * title_score) + (w_abstract * abstract_score) + (w_claims * claims_score)) / total_w
 
-    # If at least 1 core topic word hit in title or abstract, ensure baseline confidence
-    if exact_topic_title > 0 or exact_topic_abs > 0:
-        composite = max(0.52, composite)
-    elif query_title_hits == 0 and query_abs_hits == 0:
-        composite *= 0.20
+    # Off-topic penalty: if neither topic words nor query words match in title or abstract
+    total_hits = topic_in_title + topic_in_abstract + exp_in_title + exp_in_abstract
+    if total_hits == 0:
+        raw_composite = 0.15
+    elif topic_in_title == 0 and topic_in_abstract == 0 and exp_in_title == 0 and exp_in_abstract <= 1:
+        raw_composite = min(0.35, raw_composite * 0.5)
 
-    final_score = int(round(min(98, max(15, composite * 100))))
+    # High match boost: if strong technical alignment
+    if (topic_in_title >= 1 and topic_in_abstract >= 1) or phrase_in_title > 0 or phrase_in_abstract > 0 or (exp_in_title >= 2 and exp_in_abstract >= 2):
+        raw_composite = max(0.78, min(0.98, raw_composite * 1.2))
+
+    final_score = int(round(min(98, max(15, raw_composite * 100))))
     return final_score
 
 
@@ -898,7 +928,7 @@ def _classify_patents_with_gemini(
     prompt = f"""
 You are an expert Patent Attorney and IP Strategist.
 
-The researcher is studying the topic: "{query_topic}"
+The researcher is studying the specific research topic: "{query_topic}"
 Their proposed novel methodology is: "{method_title}"
 Approach: {method_approach[:400]}
 
@@ -907,11 +937,14 @@ Below is a list of candidate patents retrieved from live patent databases:
 {patents_text}
 
 YOUR TASK:
-1. For EACH provided patent, produce a concise IP analysis based on that specific patent's real abstract.
-2. Assign freedom-to-operate rating ("Safe" | "Caution" | "Alert") and classification ("Prior Art" | "Overlap" | "White Space").
-3. Suggest a 1-sentence design-around strategy to avoid infringing this specific patent.
-4. Calculate a unique relevance_score (integer between 50 and 98) reflecting technical proximity.
-5. Provide 3 "white_space_opportunities" — unpatented sub-niches directly related to "{query_topic}".
+1. STRICT TOPIC RELEVANCE: Evaluate each patent specifically against the user's research topic "{query_topic}".
+   - Accurately describe what THIS specific patent covers in direct relation to "{query_topic}".
+   - Keep all summaries and match explanations strictly grounded in the research topic.
+2. For EACH provided patent, produce a concise IP analysis based on that specific patent's real abstract.
+3. Assign freedom-to-operate rating ("Safe" | "Caution" | "Alert") and classification ("Prior Art" | "Overlap" | "White Space").
+4. Suggest a 1-sentence design-around strategy to avoid infringing this specific patent.
+5. Calculate a unique relevance_score (integer between 50 and 98) reflecting technical proximity to "{query_topic}".
+6. Provide 3 "white_space_opportunities" — unpatented sub-niches directly related to "{query_topic}".
 
 CRITICAL CONSTRAINT: Every field ('match_explanation', 'summary', and 'design_around_strategy') MUST be exactly 1 sentence long.
 
