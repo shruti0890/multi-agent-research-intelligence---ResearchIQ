@@ -1,8 +1,31 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 
-class GeminiQuotaExhaustedError(Exception):
-    """Raised when Gemini daily quota is exhausted. Must not be retried."""
+class GeminiError(Exception):
+    """Base exception for Gemini API errors."""
+    pass
+
+class GeminiModelUnavailableError(GeminiError):
+    """Raised when Gemini model is deprecated, not found, or unavailable (404)."""
+    pass
+
+class GeminiAuthenticationError(GeminiError):
+    """Raised when API key is missing, invalid, or permission is denied (401/403)."""
+    pass
+
+class GeminiQuotaExceededError(GeminiError):
+    """Raised when Gemini daily quota or request budget is exhausted (429/RESOURCE_EXHAUSTED)."""
+    pass
+
+# Backward compatibility alias
+GeminiQuotaExhaustedError = GeminiQuotaExceededError
+
+class GeminiServiceError(GeminiError):
+    """Raised when Gemini server returns 5xx or connection failures."""
+    pass
+
+class GeminiTimeoutError(GeminiError):
+    """Raised when Gemini request times out."""
     pass
 
 

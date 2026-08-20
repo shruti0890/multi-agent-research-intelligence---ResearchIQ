@@ -4,7 +4,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import json
 import datetime
 import html
-from google import genai
 from google.genai import types
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, HRFlowable, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -18,21 +17,11 @@ matplotlib.use('Agg') # Non-interactive backend
 import matplotlib.pyplot as plt
 
 from schemas import ProjectReportState, GeminiQuotaExhaustedError  # type: ignore
+from agents.agent_utils import execute_gemini_with_retry, get_gemini_model  # type: ignore
 
 load_dotenv(override=True)
 
-_gemini_client = None
-def _get_client():
-    global _gemini_client
-    if _gemini_client is None:
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY not set in environment.")
-        _gemini_client = genai.Client(api_key=api_key)
-    return _gemini_client
-
-GEMINI_MODEL = "gemini-2.5-flash"
-
+GEMINI_MODEL = get_gemini_model()
 
 # Quota exhaustion detection (same logic as other agents)
 _QUOTA_SIGNALS = [
@@ -54,9 +43,6 @@ def _is_quota_exhausted(error_msg: str) -> bool:
     return any(sig in msg for sig in _QUOTA_SIGNALS)
 
 
-_gemini_request_counter: list = [0]
-
-
 def _gemini_generate_with_retry(
     client,
     model: str,
@@ -65,55 +51,17 @@ def _gemini_generate_with_retry(
     max_retries: int = 3,
     agent_label: str = "Agent4",
 ) -> str:
-    """
-    Call client.models.generate_content() with exponential backoff retry.
-    - QUOTA EXHAUSTION: raises GeminiQuotaExhaustedError immediately (no retry).
-    - TRANSIENT ERRORS (429 rate-limit, 500, 502, 503, 504): retries with backoff (2s/4s/8s).
-    """
-    _gemini_request_counter[0] += 1
-    req_num = _gemini_request_counter[0]
-    print(f"[Gemini] {agent_label} request #{req_num} — sending prompt ({len(prompt)} chars)")
+    """Thin wrapper around centralized execute_gemini_with_retry for backward compatibility."""
+    return execute_gemini_with_retry(
+        prompt=prompt,
+        config=config,
+        model=model,
+        max_retries=max_retries,
+        agent_label=agent_label,
+    )
 
-    last_exc = None
-    for attempt in range(max_retries):
-        try:
-            response = client.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=config,
-            )
-            print(f"[Gemini] {agent_label} request #{req_num} — success")
-            return response.text.strip()
-        except Exception as e:
-            msg = str(e)
-            msg_lower = msg.lower()
 
-            if _is_quota_exhausted(msg_lower):
-                print(
-                    f"[Gemini] QUOTA EXHAUSTED on {agent_label} request #{req_num}: {msg[:160]}. "
-                    f"Not retrying (daily limit reached)."
-                )
-                raise GeminiQuotaExhaustedError(
-                    f"Gemini daily quota exhausted during {agent_label} call: {msg}"
-                ) from e
 
-            is_transient = any(
-                code in msg_lower
-                for code in ["429", "500", "502", "503", "504",
-                             "unavailable", "internal", "too many requests"]
-            )
-            if is_transient and attempt < max_retries - 1:
-                wait = (2 ** attempt) * 2
-                print(
-                    f"[Gemini] Transient error on {agent_label} request #{req_num} "
-                    f"attempt {attempt + 1}/{max_retries}: {msg[:100]}. Retrying in {wait}s..."
-                )
-                time.sleep(wait)
-                last_exc = e
-            else:
-                last_exc = e
-                break
-    raise last_exc
 
 
 def _esc(val) -> str:
@@ -346,9 +294,8 @@ def compile_final_report(state: ProjectReportState, output_dir: str = ".") -> st
     """
     
     try:
-        client = _get_client()
         response_text = _gemini_generate_with_retry(
-            client=client,
+            client=None,
             model=GEMINI_MODEL,
             prompt=prompt,
             config=types.GenerateContentConfig(response_mime_type="application/json"),

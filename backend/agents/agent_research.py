@@ -17,7 +17,8 @@ from google.genai import types
 # pyrefly: ignore [missing-import]
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from schemas import Agent1ResearchOutput, PaperMetadata, CandidateDiagnostic, GeminiQuotaExhaustedError
+from schemas import Agent1ResearchOutput, PaperMetadata, CandidateDiagnostic, GeminiQuotaExhaustedError, GeminiError
+from agents.agent_utils import execute_gemini_with_retry, get_gemini_model, get_gemini_client  # type: ignore
 # sentence_transformers used ONLY here for deterministic relevance scoring (paper selection).
 # It is NOT used in the compression pipeline. ResearchIQ does not use RAG.
 from sentence_transformers import SentenceTransformer, util as st_util
@@ -39,7 +40,7 @@ def _get_client():
         _gemini_client = genai.Client(api_key=api_key)
     return _gemini_client
 
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = get_gemini_model()
 
 # ---------------------------------------------------------------------------
 # Configurable full-text quality threshold
@@ -536,66 +537,16 @@ def _gemini_generate_with_retry(
     agent_label: str = "Agent",
 ) -> str:
     """
-    Call client.models.generate_content() with exponential backoff retry.
-
-    - DAILY QUOTA EXHAUSTION (RESOURCE_EXHAUSTED + quota signals):
-      Does NOT retry. Raises GeminiQuotaExhaustedError immediately.
-      Retrying would consume remaining daily budget for no benefit.
-
-    - TRANSIENT ERRORS (429 rate-limit, 500, 502, 503, 504):
-      Retries up to max_retries times with exponential backoff (2s/4s/8s).
-
-    Returns the response text on success.
-    Raises GeminiQuotaExhaustedError on quota exhaustion.
-    Raises the last exception if all transient retries are exhausted.
+    Thin wrapper forwarding to the centralized execute_gemini_with_retry.
+    Kept for backward compatibility with existing Agent 1 call sites.
     """
-    _gemini_request_counter[0] += 1
-    req_num = _gemini_request_counter[0]
-    print(f"[Gemini] {agent_label} request #{req_num} — sending prompt ({len(prompt)} chars)")
-
-    last_exc = None
-    for attempt in range(max_retries):
-        try:
-            response = client.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=config,
-            )
-            print(f"[Gemini] {agent_label} request #{req_num} — success")
-            return response.text.strip()
-        except Exception as e:
-            msg = str(e)
-            msg_lower = msg.lower()
-
-            # --- Quota exhaustion: do NOT retry ---
-            if _is_quota_exhausted(msg_lower):
-                print(
-                    f"[Gemini] QUOTA EXHAUSTED on {agent_label} request #{req_num}: {msg[:160]}. "
-                    f"Not retrying (daily limit reached)."
-                )
-                raise GeminiQuotaExhaustedError(
-                    f"Gemini daily quota exhausted during {agent_label} call: {msg}"
-                ) from e
-
-            # --- Transient errors: retry with backoff ---
-            is_transient = any(
-                code in msg_lower
-                for code in ["429", "500", "502", "503", "504",
-                             "unavailable", "internal", "too many requests"]
-            )
-            if is_transient and attempt < max_retries - 1:
-                wait = (2 ** attempt) * 2  # 2s, 4s, 8s
-                print(
-                    f"[Gemini] Transient error on {agent_label} request #{req_num} "
-                    f"attempt {attempt + 1}/{max_retries}: {msg[:100]}. "
-                    f"Retrying in {wait}s..."
-                )
-                time.sleep(wait)
-                last_exc = e
-            else:
-                last_exc = e
-                break
-    raise last_exc
+    return execute_gemini_with_retry(
+        prompt=prompt,
+        config=config,
+        model=model,
+        max_retries=max_retries,
+        agent_label=agent_label,
+    )
 
 
 def _fetch_arxiv_full_text(arxiv_url: str) -> str:
@@ -1467,9 +1418,8 @@ def fetch_arxiv_papers(query: str, max_results: int = 8) -> Agent1ResearchOutput
     """
 
     try:
-        client = _get_client()
         response_text = _gemini_generate_with_retry(
-            client=client,
+            client=None,
             model=GEMINI_MODEL,
             prompt=prompt,
             config=types.GenerateContentConfig(response_mime_type="application/json"),

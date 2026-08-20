@@ -673,44 +673,59 @@
             // Render Patents List
             const patentsList = document.getElementById('patents-list');
             patentsList.innerHTML = '';
-            data.patents.patents.forEach(pat => {
-                const badgeClass = pat.relevance === 'Prior Art' ? 'badge-red' : (pat.relevance === 'Overlap' ? 'badge-yellow' : 'badge-green');
-                const ftoBadgeClass = pat.fto_rating === 'Alert' ? 'badge-red' : (pat.fto_rating === 'Caution' ? 'badge-yellow' : 'badge-green');
-
-                // Build reliable links: always prefer direct URL first, then source_links
-                const directUrl = pat.url || '';
-                let linksHtml = '';
-                if (pat.source_links && Object.keys(pat.source_links).length > 0) {
-                    linksHtml = Object.entries(pat.source_links).map(([platform, link]) =>
-                        `<a href="${link}" target="_blank" style="display:inline-block; background:rgba(96, 165, 250, 0.1); border:1px solid rgba(96, 165, 250, 0.3); color:#93C5FD; padding:4px 10px; border-radius:15px; font-size:12px; text-decoration:none;" onmouseover="this.style.background='rgba(96, 165, 250, 0.2)'" onmouseout="this.style.background='rgba(96, 165, 250, 0.1)'">🔗 ${platform}</a>`
-                    ).join('');
-                } else if (directUrl) {
-                    linksHtml = `<a href="${directUrl}" target="_blank" style="display:inline-block; background:rgba(96, 165, 250, 0.1); border:1px solid rgba(96, 165, 250, 0.3); color:#93C5FD; padding:4px 10px; border-radius:15px; font-size:12px; text-decoration:none;">🔗 View Patent</a>`;
-                }
-
-                patentsList.innerHTML += `
-                    <div class="patent-card">
-                        <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
-                            <span class="badge ${badgeClass}">${pat.relevance}</span>
-                            <span class="badge ${ftoBadgeClass}">FTO: ${pat.fto_rating}</span>
-                            <span class="badge badge-purple">Relevance: ${pat.relevance_score}/100</span>
-                            <span class="badge badge-green">Rank #${pat.rank}</span>
-                        </div>
-                        <h4 style="margin-bottom: 5px; font-family: 'Outfit';">Patent ID: ${pat.patent_id} — ${pat.title}</h4>
-                        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">Assignee: ${pat.assignee}</p>
-                        <p style="font-size: 13.5px; line-height: 1.4; color: var(--text-muted); margin-bottom: 10px;"><b>Match Explanation:</b> ${pat.match_explanation}</p>
-                        <p style="font-size: 14px; line-height: 1.5; color: var(--text-main); margin-bottom: 12px;"><b>Summary:</b> ${pat.summary}</p>
-                        
-                        <div style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); padding: 15px; border-radius: 8px; border-left: 4px solid var(--accent-green); margin-bottom: 10px;">
-                            <p style="font-size: 13px; font-weight: 700; color: #34D399; margin-bottom: 4px;">🛡️ Actionable Design-Around Strategy:</p>
-                            <p style="font-size: 13.5px; line-height: 1.5; color: var(--text-main);">${pat.design_around_strategy}</p>
-                        </div>
-                        <div style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px;">
-                            ${linksHtml}
+            if (!data.patents.patents || data.patents.patents.length === 0) {
+                patentsList.innerHTML = `
+                    <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 24px; text-align: center; color: var(--text-muted);">
+                        <p style="font-size: 16px; font-weight: 600; color: #93C5FD; margin-bottom: 8px;">No Direct Patent Infringement / Overlapping Patents Found</p>
+                        <p style="font-size: 13.5px; line-height: 1.6; margin-bottom: 16px;">The patent vetting agent screened candidate databases and confirmed that no overlapping prior-art patents met the risk threshold for this specific query.</p>
+                        <div style="text-align: left; background: rgba(16, 185, 129, 0.05); border-left: 4px solid var(--accent-green); padding: 15px; border-radius: 8px;">
+                            <p style="font-size: 13px; font-weight: 700; color: #34D399; margin-bottom: 6px;">💡 Unexplored White-Space Opportunities:</p>
+                            <ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.6; color: var(--text-main);">
+                                ${(data.patents.white_space_opportunities || []).map(o => `<li>${o}</li>`).join('')}
+                            </ul>
                         </div>
                     </div>
                 `;
-            });
+            } else {
+                data.patents.patents.forEach(pat => {
+                    const badgeClass = pat.relevance === 'Prior Art' ? 'badge-red' : (pat.relevance === 'Overlap' ? 'badge-yellow' : 'badge-green');
+                    const ftoBadgeClass = pat.fto_rating === 'Alert' ? 'badge-red' : (pat.fto_rating === 'Caution' ? 'badge-yellow' : 'badge-green');
+
+                    // Build reliable links: always prefer direct URL first, then source_links
+                    const directUrl = pat.url || '';
+                    let linksHtml = '';
+                    if (pat.source_links && Object.keys(pat.source_links).length > 0) {
+                        linksHtml = Object.entries(pat.source_links).map(([platform, link]) =>
+                            `<a href="${link}" target="_blank" style="display:inline-block; background:rgba(96, 165, 250, 0.1); border:1px solid rgba(96, 165, 250, 0.3); color:#93C5FD; padding:4px 10px; border-radius:15px; font-size:12px; text-decoration:none;" onmouseover="this.style.background='rgba(96, 165, 250, 0.2)'" onmouseout="this.style.background='rgba(96, 165, 250, 0.1)'">🔗 ${platform}</a>`
+                        ).join('');
+                    } else if (directUrl) {
+                        linksHtml = `<a href="${directUrl}" target="_blank" style="display:inline-block; background:rgba(96, 165, 250, 0.1); border:1px solid rgba(96, 165, 250, 0.3); color:#93C5FD; padding:4px 10px; border-radius:15px; font-size:12px; text-decoration:none;">🔗 View Patent</a>`;
+                    }
+
+                    patentsList.innerHTML += `
+                        <div class="patent-card">
+                            <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
+                                <span class="badge ${badgeClass}">${pat.relevance}</span>
+                                <span class="badge ${ftoBadgeClass}">FTO: ${pat.fto_rating}</span>
+                                <span class="badge badge-purple">Relevance: ${pat.relevance_score}/100</span>
+                                <span class="badge badge-green">Rank #${pat.rank}</span>
+                            </div>
+                            <h4 style="margin-bottom: 5px; font-family: 'Outfit';">Patent ID: ${pat.patent_id} — ${pat.title}</h4>
+                            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">Assignee: ${pat.assignee}</p>
+                            <p style="font-size: 13.5px; line-height: 1.4; color: var(--text-muted); margin-bottom: 10px;"><b>Match Explanation:</b> ${pat.match_explanation}</p>
+                            <p style="font-size: 14px; line-height: 1.5; color: var(--text-main); margin-bottom: 12px;"><b>Summary:</b> ${pat.summary}</p>
+                            
+                            <div style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); padding: 15px; border-radius: 8px; border-left: 4px solid var(--accent-green); margin-bottom: 10px;">
+                                <p style="font-size: 13px; font-weight: 700; color: #34D399; margin-bottom: 4px;">🛡️ Actionable Design-Around Strategy:</p>
+                                <p style="font-size: 13.5px; line-height: 1.5; color: var(--text-main);">${pat.design_around_strategy}</p>
+                            </div>
+                            <div style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px;">
+                                ${linksHtml}
+                            </div>
+                        </div>
+                    `;
+                });
+            }
 
             // Set Download URL
             if (data.pdf_filename) {
