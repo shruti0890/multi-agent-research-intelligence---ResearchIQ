@@ -1032,32 +1032,44 @@
             line-height: 1.6;
         }
 
-        /* Comparison Table */
-        .comparison-table-wrap {
-            overflow-x: auto;
+        /* Comparison Grid Layout */
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 40px;
+            align-items: stretch;
+            margin-top: 40px;
+        }
+
+        @media (max-width: 991px) {
+            .comparison-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Standout highlighted column styling for ResearchIQ */
+        .premium-comparison-wrap {
             background: var(--bg-paper-card);
             border: 1px solid var(--rule-color);
             border-radius: var(--radius-sm);
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(23, 27, 43, 0.02);
         }
 
-        .comparison-table {
+        .premium-comparison-table {
             width: 100%;
             border-collapse: collapse;
             text-align: left;
             font-size: 14px;
         }
 
-        .comparison-table th, .comparison-table td {
+        .premium-comparison-table th, .premium-comparison-table td {
             padding: 16px 20px;
             border-bottom: 1px solid var(--rule-light);
-            transition: background var(--transition-fast);
+            vertical-align: middle;
         }
 
-        .comparison-table tbody tr:hover td {
-            background: #F5F2EB;
-        }
-
-        .comparison-table th {
+        .premium-comparison-table th {
             font-family: 'Newsreader', Georgia, serif;
             font-size: 16px;
             font-weight: 600;
@@ -1065,16 +1077,768 @@
             background: var(--bg-paper-light);
         }
 
-        .comparison-table th:last-child {
-            background: #EFECE3;
+        /* Muted traditional col */
+        .premium-comparison-table td:nth-child(2) {
+            color: var(--ink-muted);
+        }
+
+        /* Highlighting ResearchIQ Column cells */
+        .premium-comparison-table .standout-col-header {
+            background: var(--ink-primary) !important;
+            color: var(--bg-paper) !important;
+            font-weight: 700;
+            text-align: center;
+            border-bottom: 1px solid var(--ink-primary);
+        }
+
+        .premium-comparison-table .standout-col-cell {
+            background: rgba(23, 27, 43, 0.02);
+            color: var(--accent-green);
+            font-weight: 600;
+            text-align: center;
+            border-left: 1.5px solid var(--rule-light);
+            border-right: 1.5px solid var(--rule-light);
+        }
+
+        .premium-comparison-table tr:last-child .standout-col-cell {
+            border-bottom: 2px solid var(--accent-gold);
+        }
+
+        .premium-comparison-table tr:first-child .standout-col-cell {
+            border-top: 1px solid var(--rule-light);
+        }
+
+        /* Standout text colors */
+        .standout-gold-text {
+            color: var(--accent-gold) !important;
+        }
+
+        /* Animated checkmark check-animate class */
+        .check-animate {
+            display: inline-block;
+            animation: drawCheck 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes drawCheck {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Workflow Comparison Card */
+        .workflow-comparison-card {
+            background: var(--bg-paper-card);
+            border: 1px solid var(--rule-color);
+            border-radius: var(--radius-sm);
+            padding: 36px 30px;
+            box-shadow: 0 4px 20px rgba(23, 27, 43, 0.02);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .workflow-comparison-title {
+            font-family: 'Newsreader', Georgia, serif;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--ink-primary);
+            margin-bottom: 12px;
+            letter-spacing: -0.01em;
+        }
+
+        .workflow-flex-container {
+            display: flex;
+            gap: 20px;
+            margin-top: auto;
+        }
+
+        @media (max-width: 576px) {
+            .workflow-flex-container {
+                flex-direction: column;
+                gap: 40px;
+            }
+        }
+
+        .workflow-column {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .workflow-column h4 {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            letter-spacing: 0.05em;
+        }
+
+        .workflow-column.traditional h4 {
+            color: var(--ink-muted);
+        }
+
+        .workflow-column.researchiq h4 {
+            color: var(--accent-gold);
+        }
+
+        .workflow-notes {
+            font-size: 11.5px;
+            line-height: 1.4;
+            margin-bottom: 20px;
+            min-height: 32px;
+        }
+
+        .workflow-notes.text-gold {
+            color: var(--accent-gold);
+            font-weight: 500;
+        }
+
+        /* Traditional Workflow steps */
+        .workflow-steps {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        .flat-step {
+            background: var(--bg-paper-light);
+            border: 1px solid var(--rule-light);
+            color: var(--ink-secondary);
+            font-size: 12.5px;
+            padding: 8px 12px;
+            border-radius: var(--radius-sm);
+            width: 90%;
+            max-width: 150px;
+        }
+
+        .flat-arrow {
+            color: var(--ink-muted);
+            font-size: 12px;
+            margin: 4px 0;
+        }
+
+        /* ResearchIQ Workflow Steps wrapper */
+        .workflow-steps-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            position: relative;
+            padding: 0 10px;
+        }
+
+        .connector-svg-container {
+            position: absolute;
+            top: 15px;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 20px;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .agent-step-node {
+            background: var(--ink-primary);
+            border: 1px solid var(--accent-gold);
+            color: var(--bg-paper);
+            padding: 8px 12px;
+            border-radius: var(--radius-sm);
+            width: 95%;
+            max-width: 180px;
+            z-index: 2;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+            transition: transform var(--transition-fast);
+        }
+
+        .agent-step-node:hover {
+            transform: scale(1.02) translateZ(5px);
+            border-color: var(--accent-green);
+        }
+
+        .agent-step-tag {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 9px;
+            font-weight: 700;
+            color: var(--accent-gold);
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+
+        .agent-step-name {
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .agent-step-space {
+            height: 38px;
+        }
+
+        /* Floating tiny cards around ResearchIQ column */
+        .floating-card {
+            position: absolute;
+            background: var(--bg-paper-card);
+            border: 1px solid var(--rule-color);
+            padding: 6px 10px;
+            border-radius: var(--radius-sm);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            color: var(--ink-secondary);
+            box-shadow: 0 4px 12px rgba(23, 27, 43, 0.05);
+            animation: gentleFloat 5s ease-in-out infinite;
+            pointer-events: none;
+            z-index: 3;
+            white-space: nowrap;
+        }
+
+        @keyframes gentleFloat {
+            0% { transform: translateY(0px) rotate(2deg); }
+            50% { transform: translateY(-5px) rotate(-2deg); }
+            100% { transform: translateY(0px) rotate(2deg); }
+        }
+
+        /* Workspace Results Layout */
+        .workspace-results-layout {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px 24px;
+        }
+
+        .results-dashboard-grid {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            gap: 40px;
+        }
+
+        @media (max-width: 768px) {
+            .results-dashboard-grid {
+                grid-template-columns: 1fr;
+                gap: 30px;
+            }
+        }
+
+        .results-sidebar-nav {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            height: fit-content;
+            position: sticky;
+            top: 40px;
+            align-self: start;
+            z-index: 10;
+        }
+
+        @media (max-width: 768px) {
+            .results-sidebar-nav {
+                position: static;
+                flex-direction: row;
+                flex-wrap: wrap;
+            }
+        }
+
+        .workspace-nav-btn {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            padding: 12px 16px;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: var(--radius-sm);
+            color: var(--ink-secondary);
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            text-align: left;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        @media (max-width: 768px) {
+            .workspace-nav-btn {
+                width: auto;
+            }
+        }
+
+        .workspace-nav-btn:hover {
+            background: var(--bg-paper-light);
+            color: var(--ink-primary);
+        }
+
+        .workspace-nav-btn.active {
+            background: var(--ink-primary);
+            color: var(--bg-paper);
+            border-color: var(--ink-primary);
+            font-weight: 600;
+        }
+
+        .workspace-nav-btn .nav-badge {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            background: rgba(23, 27, 43, 0.08);
+            color: var(--ink-secondary);
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-weight: 700;
+            transition: all var(--transition-fast);
+        }
+
+        .workspace-nav-btn.active .nav-badge {
+            background: rgba(255, 255, 255, 0.2);
+            color: var(--bg-paper);
+        }
+
+        .results-content-panel {
+            background: var(--bg-paper-card);
+            border: 1px solid var(--rule-color);
+            border-radius: var(--radius-sm);
+            padding: 40px;
+            min-height: 520px;
+            box-shadow: 0 4px 20px rgba(23, 27, 43, 0.02);
+        }
+
+        @media (max-width: 576px) {
+            .results-content-panel {
+                padding: 20px;
+            }
+        }
+
+        .workspace-tab-content {
+            display: none;
+        }
+
+        .workspace-tab-content.active {
+            display: block;
+        }
+
+        .results-stats-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-top: 24px;
+        }
+
+        @media (max-width: 576px) {
+            .results-stats-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .results-stat-card {
+            background: var(--bg-paper-light);
+            border: 1px solid var(--rule-light);
+            padding: 20px;
+            border-radius: var(--radius-sm);
+            text-align: center;
+        }
+
+        /* Redesigned Grid and Card Architecture */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-top: 20px;
+            align-items: stretch;
+        }
+
+        @media (max-width: 768px) {
+            .card-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .patent-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-top: 20px;
+            align-items: stretch;
+        }
+
+        @media (min-width: 1200px) {
+            .patent-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .patent-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .interactive-card {
+            background: var(--bg-paper-light);
+            border: 1px solid var(--rule-light);
+            border-radius: var(--radius-sm);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 280px;
+            height: 100%;
+            box-sizing: border-box;
+            transition: all var(--transition-fast);
+            cursor: pointer;
+            position: relative;
+        }
+
+        .interactive-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 24px rgba(23, 27, 43, 0.06);
+        }
+
+        /* Accents for Agent Cards */
+        .interactive-card.agent-1-card:hover {
+            border-color: var(--accent-green);
+        }
+        .interactive-card.agent-2-card:hover {
+            border-color: var(--accent-coral);
+        }
+        .interactive-card.agent-3-card:hover {
+            border-color: var(--accent-gold);
+        }
+        .interactive-card.agent-4-card:hover {
+            border-color: var(--ink-primary);
+        }
+
+        .card-header-block {
+            min-height: 110px;
+            margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+        }
+
+        .card-header-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--ink-muted);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .card-title {
+            font-family: 'Newsreader', serif;
+            font-size: 18px;
+            font-weight: 600;
+            line-height: 1.3;
+            color: var(--ink-primary);
+            margin-bottom: 8px;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .card-authors {
+            font-size: 12px;
+            color: var(--ink-muted);
+            margin-bottom: 0px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .card-key-findings {
+            margin-bottom: 20px;
+            flex: 1;
+        }
+
+        .card-key-findings-title {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--accent-gold);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+
+        .card-key-findings ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 120px;
+            overflow: hidden;
+            -webkit-mask-image: linear-gradient(to bottom, black 65%, transparent 100%);
+            mask-image: linear-gradient(to bottom, black 65%, transparent 100%);
+        }
+
+        .card-key-findings li {
+            font-size: 12.5px;
+            line-height: 1.5;
+            color: var(--ink-secondary);
+            padding: 2px 0;
+            display: flex;
+            gap: 6px;
+        }
+
+        .card-key-findings li span {
             color: var(--accent-gold);
             font-weight: 700;
         }
 
-        .comparison-table td:last-child {
-            background: #FAF8F2;
+        .card-metadata-strip {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            border-top: 1px solid var(--rule-light);
+            padding-top: 12px;
+            margin-bottom: 12px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
             font-weight: 600;
+            color: var(--ink-muted);
+        }
+
+        .card-metadata-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .card-metadata-item.success-tag {
             color: var(--accent-green);
+        }
+
+        /* Filter & Search Bar Styling */
+        .controls-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .filter-pill {
+            background: var(--bg-paper-light);
+            border: 1px solid var(--rule-light);
+            padding: 6px 12px;
+            font-size: 12px;
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-weight: 500;
+            color: var(--ink-secondary);
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .filter-pill:hover {
+            background: rgba(23, 27, 43, 0.04);
+        }
+
+        .filter-pill.active {
+            background: var(--ink-primary);
+            border-color: var(--ink-primary);
+            color: var(--bg-paper);
+        }
+
+        .search-wrapper {
+            position: relative;
+            min-width: 200px;
+        }
+
+        @media (max-width: 576px) {
+            .search-wrapper {
+                width: 100%;
+            }
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-family: 'IBM Plex Sans', sans-serif;
+            background: var(--bg-paper-light);
+            border: 1px solid var(--rule-light);
+            border-radius: var(--radius-sm);
+            color: var(--ink-primary);
+            outline: none;
+            transition: all var(--transition-fast);
+        }
+
+        .search-input:focus {
+            border-color: var(--accent-gold);
+            background: var(--bg-paper);
+        }
+
+        /* Detail Drawer & Backdrop */
+        .drawer-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(23, 27, 43, 0.4);
+            backdrop-filter: blur(2px);
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .drawer-backdrop.open {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .detail-drawer {
+            position: fixed;
+            top: 0;
+            right: -520px;
+            width: 500px;
+            height: 100%;
+            background: var(--bg-paper);
+            box-shadow: -8px 0 32px rgba(23, 27, 43, 0.15);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            transition: right 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        .detail-drawer.open {
+            right: 0;
+        }
+
+        @media (max-width: 576px) {
+            .detail-drawer {
+                width: 100%;
+                right: -100%;
+            }
+        }
+
+        .drawer-header {
+            padding: 24px;
+            border-bottom: 1px solid var(--rule-light);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .drawer-title-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--accent-gold);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .drawer-close-btn {
+            background: transparent;
+            border: none;
+            font-size: 24px;
+            line-height: 1;
+            color: var(--ink-secondary);
+            cursor: pointer;
+            padding: 4px;
+            transition: color var(--transition-fast);
+        }
+
+        .drawer-close-btn:hover {
+            color: var(--ink-primary);
+        }
+
+        .drawer-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 30px 24px;
+        }
+
+        .drawer-content h2 {
+            font-family: 'Newsreader', serif;
+            font-size: 24px;
+            font-weight: 600;
+            line-height: 1.3;
+            margin-bottom: 15px;
+        }
+
+        .drawer-section-title {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--ink-muted);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin-top: 30px;
+            margin-bottom: 8px;
+            border-bottom: 1px solid var(--rule-light);
+            padding-bottom: 4px;
+        }
+
+        .drawer-section-content {
+            font-size: 14px;
+            line-height: 1.6;
+            color: var(--ink-primary);
+            margin-bottom: 20px;
+        }
+
+        .drawer-footer-nav {
+            padding: 16px 24px;
+            border-top: 1px solid var(--rule-light);
+            background: var(--bg-paper-light);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .drawer-nav-btn {
+            background: transparent;
+            border: none;
+            color: var(--ink-secondary);
+            cursor: pointer;
+            padding: 6px 12px;
+            border-radius: var(--radius-sm);
+            transition: all var(--transition-fast);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .drawer-nav-btn:hover:not(:disabled) {
+            background: rgba(23, 27, 43, 0.05);
+            color: var(--ink-primary);
+        }
+
+        .drawer-nav-btn:disabled {
+            color: var(--ink-muted);
+            cursor: not-allowed;
+        }
+
+        .results-list-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .floating-card {
+                animation: none !important;
+                transform: rotate(2deg) !important;
+            }
+            .connector-svg-container circle {
+                display: none !important;
+            }
+            .connector-svg-container #flowing-line {
+                animation: none !important;
+                stroke-dasharray: none !important;
+            }
         }
 
         /* Final Editorial Dark CTA Band */
@@ -1828,6 +2592,188 @@
             </div>
         </section>
 
+        <!-- Capabilities Section -->
+        <section class="editorial-section" id="capabilities">
+            <div class="section-intro">
+                <div class="section-eyebrow">CAPABILITIES</div>
+                <h2 class="section-title">Designed for rigorous investigations.</h2>
+            </div>
+            
+            <div class="capabilities-grid">
+                <div class="capability-card">
+                    <div class="cap-tag">Agent 1</div>
+                    <h3 class="cap-title">Research Discovery</h3>
+                    <p class="cap-desc">Automates academic database queries to retrieve and filter relevant full-text papers.</p>
+                </div>
+                <div class="capability-card">
+                    <div class="cap-tag">Agent 1 & 2</div>
+                    <h3 class="cap-title">Evidence Synthesis</h3>
+                    <p class="cap-desc">Extracts claims, dataset bounds, and methodologies into structured TextRank fact sheets.</p>
+                </div>
+                <div class="capability-card">
+                    <div class="cap-tag">Agent 2</div>
+                    <h3 class="cap-title">Gap Analysis</h3>
+                    <p class="cap-desc">Maps contradictions, limitations, and methodological gaps across the entire verified corpus.</p>
+                </div>
+                <div class="capability-card">
+                    <div class="cap-tag">Agent 3</div>
+                    <h3 class="cap-title">Patent Intelligence</h3>
+                    <p class="cap-desc">Audits patent registries independently to evaluate prior art claims and verify FTO risk profiles.</p>
+                </div>
+                <div class="capability-card">
+                    <div class="cap-tag">Agent 4</div>
+                    <h3 class="cap-title">Report Generation</h3>
+                    <p class="cap-desc">Compiles all pipeline verifications and opportunities into a publication-ready PDF brief.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Comparison Section -->
+        <section class="editorial-section" id="comparison">
+            <div class="section-intro">
+                <div class="section-eyebrow">WHY RESEARCHIQ</div>
+                <h2 class="section-title">Research shouldn't stop at finding papers.</h2>
+                <p style="color: var(--ink-secondary); font-size: 16px; margin-top: 8px; max-width: 720px;">
+                    ResearchIQ connects literature discovery, evidence synthesis, research-gap analysis, and patent intelligence in one multi-agent research workflow.
+                </p>
+            </div>
+
+            <div class="comparison-grid">
+                <!-- Left: Comparison Table -->
+                <div class="comparison-table-column">
+                    <div class="premium-comparison-wrap">
+                        <table class="premium-comparison-table">
+                            <thead>
+                                <tr>
+                                    <th>Methodology</th>
+                                    <th>Traditional Research</th>
+                                    <th class="standout-col-header">ResearchIQ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Paper Discovery</strong></td>
+                                    <td>✓</td>
+                                    <td class="standout-col-cell"><span class="check-animate">✓</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Full-Text Validation</strong></td>
+                                    <td>—</td>
+                                    <td class="standout-col-cell"><span class="check-animate">✓</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Evidence Synthesis</strong></td>
+                                    <td>Manual</td>
+                                    <td class="standout-col-cell standout-gold-text">AI-assisted</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Research Gap Analysis</strong></td>
+                                    <td>Manual</td>
+                                    <td class="standout-col-cell"><span class="check-animate">✓</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Patent Landscape</strong></td>
+                                    <td>Separate Search</td>
+                                    <td class="standout-col-cell"><span class="check-animate">✓</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Cross-Paper Analysis</strong></td>
+                                    <td>Manual</td>
+                                    <td class="standout-col-cell"><span class="check-animate">✓</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Evidence Grounding</strong></td>
+                                    <td>Manual</td>
+                                    <td class="standout-col-cell"><span class="check-animate">✓</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Structured Report</strong></td>
+                                    <td>Manual</td>
+                                    <td class="standout-col-cell"><span class="check-animate">✓</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Right: Workflow Comparison and 3D Nodes -->
+                <div class="comparison-workflow-column">
+                    <div class="workflow-comparison-card">
+                        <h3 class="workflow-comparison-title">FROM SEARCH TO RESEARCH INTELLIGENCE</h3>
+                        <p style="color:var(--ink-secondary); font-size:13.5px; margin-bottom: 24px; line-height: 1.5;">
+                            Traditional research workflows often split literature review, gap analysis, patent searching, and reporting across multiple tools. ResearchIQ brings these stages together through a multi-agent workflow.
+                        </p>
+
+                        <div class="workflow-flex-container">
+                            <!-- Traditional Column -->
+                            <div class="workflow-column traditional">
+                                <h4>TRADITIONAL WORKFLOW</h4>
+                                <div class="workflow-notes">Multiple tools. Manual comparison. Fragmented evidence.</div>
+                                <div class="workflow-steps">
+                                    <div class="flat-step">Search</div>
+                                    <div class="flat-arrow">↓</div>
+                                    <div class="flat-step">Read</div>
+                                    <div class="flat-arrow">↓</div>
+                                    <div class="flat-step">Take Notes</div>
+                                    <div class="flat-arrow">↓</div>
+                                    <div class="flat-step">Compare</div>
+                                    <div class="flat-arrow">↓</div>
+                                    <div class="flat-step">Search Patents</div>
+                                    <div class="flat-arrow">↓</div>
+                                    <div class="flat-step">Write Report</div>
+                                </div>
+                            </div>
+
+                            <!-- ResearchIQ Column -->
+                            <div class="workflow-column researchiq">
+                                <h4>RESEARCHIQ WORKFLOW</h4>
+                                <div class="workflow-notes text-gold">One investigation. Connected evidence. Structured insight.</div>
+                                <div class="workflow-steps-wrapper" style="position: relative;">
+                                    <!-- Animated Connector SVG -->
+                                    <div class="connector-svg-container">
+                                        <svg width="100%" height="100%" viewBox="0 0 20 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M10,0 L10,240" stroke="var(--rule-light)" stroke-width="2" stroke-dasharray="4,4" />
+                                            <path d="M10,0 L10,240" stroke="var(--accent-gold)" stroke-width="2" stroke-dasharray="100,500" stroke-dashoffset="0" id="flowing-line">
+                                                <animate attributeName="stroke-dashoffset" values="600;0" dur="6s" repeatCount="indefinite" />
+                                            </path>
+                                            <circle r="4" fill="var(--accent-green)">
+                                                <animateMotion dur="6s" repeatCount="indefinite" path="M10,0 L10,240" />
+                                            </circle>
+                                        </svg>
+                                    </div>
+
+                                    <!-- Floating items -->
+                                    <div class="floating-card" style="top: 20px; left: -80px; animation-delay: 0s;">PDF Brief</div>
+                                    <div class="floating-card" style="top: 90px; right: -75px; animation-delay: 1.5s;">Patent Claims</div>
+                                    <div class="floating-card" style="top: 160px; left: -75px; animation-delay: 3s;">Gap Matrix</div>
+
+                                    <div class="agent-step-node">
+                                        <div class="agent-step-tag">Agent 1</div>
+                                        <div class="agent-step-name">Research Discovery</div>
+                                    </div>
+                                    <div class="agent-step-space"></div>
+                                    <div class="agent-step-node">
+                                        <div class="agent-step-tag">Agent 2</div>
+                                        <div class="agent-step-name">Gap Analysis</div>
+                                    </div>
+                                    <div class="agent-step-space"></div>
+                                    <div class="agent-step-node">
+                                        <div class="agent-step-tag">Agent 3</div>
+                                        <div class="agent-step-name">Patent Landscape</div>
+                                    </div>
+                                    <div class="agent-step-space"></div>
+                                    <div class="agent-step-node">
+                                        <div class="agent-step-tag">Agent 4</div>
+                                        <div class="agent-step-name">Report Generation</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- Final Editorial Dark CTA Band -->
         <section class="editorial-cta-band">
             <canvas class="cta-network-canvas" id="cta-network-canvas"></canvas>
@@ -1935,7 +2881,7 @@
             </div>
         </header>
 
-        <div class="workspace-container">
+        <div class="workspace-container" id="workspace-run-container">
             <!-- Pipeline Stage Indicator -->
             <div class="agent-timeline-header">
                 <div class="agent-timeline-node" id="node-agent-1">
@@ -2138,40 +3084,286 @@
                     </div>
                 </div>
             </div>
+        </div> <!-- End of workspace-run-container -->
+
+        <!-- Workspace Results Container -->
+        <div class="workspace-container" id="workspace-results-container" style="display: none; padding-top: 20px; padding-bottom: 80px;">
+            <div class="workspace-results-layout">
+                <!-- Header with Back Button and Title -->
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:40px; border-bottom:1.5px solid var(--rule-color); padding-bottom:20px; gap:20px; flex-wrap:wrap;">
+                    <div style="flex:1; min-width:280px;">
+                        <div style="font-family:'IBM Plex Mono', monospace; font-size:12px; font-weight:700; color:var(--accent-gold); margin-bottom:6px;">RESEARCH DOSSIER COMPLETE</div>
+                        <h1 style="font-family:'Newsreader', serif; font-size:32px; line-height:1.2; font-weight:600;" id="results-topic-title">Research Topic</h1>
+                    </div>
+                    <button class="btn-editorial-primary" onclick="closeWorkspace()">
+                        <span>[ RETURN TO HOME ]</span>
+                    </button>
+                </div>
+
+                <!-- Dashboard Layout Grid -->
+                <div class="results-dashboard-grid" id="dashboard" style="display: none;">
+                    <!-- Left Sidebar Navigation -->
+                    <div class="results-sidebar-nav">
+                        <button class="workspace-nav-btn active" id="btn-overview" onclick="switchTab('overview')">
+                            <span>Dossier Overview</span>
+                            <span class="nav-badge" id="badge-overview">—</span>
+                        </button>
+                        <button class="workspace-nav-btn" id="btn-papers" onclick="switchTab('papers')">
+                            <span>Verified Papers</span>
+                            <span class="nav-badge" id="badge-papers">0</span>
+                        </button>
+                        <button class="workspace-nav-btn" id="btn-gaps" onclick="switchTab('gaps')">
+                            <span>Identified Gaps</span>
+                            <span class="nav-badge" id="badge-gaps">0</span>
+                        </button>
+                        <button class="workspace-nav-btn" id="btn-patents" onclick="switchTab('patents')">
+                            <span>Patent Prior Art</span>
+                            <span class="nav-badge" id="badge-patents">0</span>
+                        </button>
+                        <button class="workspace-nav-btn" id="btn-report" onclick="switchTab('report')">
+                            <span>Compiled Report</span>
+                            <span class="nav-badge" id="badge-report">✓</span>
+                        </button>
+                    </div>
+
+                    <!-- Right Content Area -->
+                    <div class="results-content-panel">
+                        <!-- Overview Tab -->
+                        <div class="workspace-tab-content active" id="tab-overview">
+                            <h2 style="font-family:'Newsreader', serif; font-size:26px; font-weight:600; margin-bottom:15px;">Executive Synthesis Overview</h2>
+                            <p style="color:var(--ink-secondary); font-size:14.5px; margin-bottom:30px; line-height:1.6;">
+                                The multi-agent coordinator has completed literature search, full-text analysis, gap synthesis, and patent auditing. Review individual findings in the sidebar tabs or download the compiled publication-ready brief.
+                            </p>
+
+                            <!-- Stats Row -->
+                            <div class="results-stats-row">
+                                <div class="results-stat-card" style="border-left:3px solid var(--accent-green);">
+                                    <h3 id="stat-papers" style="font-family:'Newsreader', serif; font-size:38px; color:var(--ink-primary); font-weight:600;">0</h3>
+                                    <p style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-muted); text-transform:uppercase; font-weight:600;">Papers Discovered</p>
+                                </div>
+                                <div class="results-stat-card" style="border-left:3px solid var(--accent-coral);">
+                                    <h3 id="stat-gaps" style="font-family:'Newsreader', serif; font-size:38px; color:var(--accent-coral); font-weight:600;">0</h3>
+                                    <p style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-muted); text-transform:uppercase; font-weight:600;">Research Gaps</p>
+                                </div>
+                                <div class="results-stat-card" style="border-left:3px solid var(--accent-gold);">
+                                    <h3 id="stat-patents" style="font-family:'Newsreader', serif; font-size:38px; color:var(--accent-gold); font-weight:600;">0</h3>
+                                    <p style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-muted); text-transform:uppercase; font-weight:600;">Patents Vetted</p>
+                                </div>
+                            </div>
+
+                            <!-- Investigation Summary -->
+                            <div style="margin-top: 40px; background: var(--bg-paper-light); border: 1px solid var(--rule-light); border-radius: var(--radius-sm); padding: 24px;">
+                                <h3 style="font-family:'IBM Plex Mono', monospace; font-size:12px; font-weight:700; color:var(--accent-gold); text-transform:uppercase; margin-bottom:14px; letter-spacing:0.05em;">Investigation Summary</h3>
+                                <ul id="overview-summary-list" style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:10px;">
+                                    <!-- Dynamic investigation bullets -->
+                                </ul>
+                            </div>
+
+                            <!-- Research Signals -->
+                            <div style="margin-top: 40px; border: 1px solid var(--rule-light); border-radius: var(--radius-sm); overflow: hidden;">
+                                <div style="background: var(--bg-paper-light); padding: 12px 20px; font-family:'IBM Plex Mono', monospace; font-size:11px; font-weight:700; color:var(--ink-secondary); border-bottom: 1px solid var(--rule-light); letter-spacing:0.05em;">RESEARCH SIGNALS</div>
+                                <div style="padding: 24px; display:flex; flex-direction:column; gap:20px;">
+                                    <div>
+                                        <div style="font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--accent-green); font-weight:700; margin-bottom:6px; letter-spacing:0.05em;">STRONGEST EVIDENCE</div>
+                                        <div id="signal-evidence" style="font-size:14px; line-height:1.6; color:var(--ink-primary);">Searching literature...</div>
+                                    </div>
+                                    <div style="border-top:1px solid var(--rule-light); padding-top:20px;">
+                                        <div style="font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--accent-coral); font-weight:700; margin-bottom:6px; letter-spacing:0.05em;">MAIN RESEARCH GAP</div>
+                                        <div id="signal-gap" style="font-size:14px; line-height:1.6; color:var(--ink-primary);">Analyzing gaps...</div>
+                                    </div>
+                                    <div style="border-top:1px solid var(--rule-light); padding-top:20px;">
+                                        <div style="font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--accent-gold); font-weight:700; margin-bottom:6px; letter-spacing:0.05em;">PATENT LANDSCAPE</div>
+                                        <div id="signal-patent" style="font-size:14px; line-height:1.6; color:var(--ink-primary);">Auditing patents...</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Top Papers Highlight Preview -->
+                            <div style="margin-top: 50px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+                                    <h3 style="font-family:'Newsreader', serif; font-size:22px; font-weight:600;">Top Discovered Papers</h3>
+                                    <button class="btn-editorial-primary" style="font-size:11px; padding:4px 8px;" onclick="switchTab('papers')"><span>[ VIEW ALL PAPERS → ]</span></button>
+                                </div>
+                                <div id="overview-papers-preview" class="card-grid"></div>
+                            </div>
+
+                            <!-- Top Gaps Highlight Preview -->
+                            <div style="margin-top: 50px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+                                    <h3 style="font-family:'Newsreader', serif; font-size:22px; font-weight:600;">Key Research Gaps</h3>
+                                    <button class="btn-editorial-primary" style="font-size:11px; padding:4px 8px;" onclick="switchTab('gaps')"><span>[ VIEW ALL GAPS → ]</span></button>
+                                </div>
+                                <div id="overview-gaps-preview" class="card-grid"></div>
+                            </div>
+
+                            <!-- Top Patents Highlight Preview -->
+                            <div style="margin-top: 50px; margin-bottom: 20px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+                                    <h3 style="font-family:'Newsreader', serif; font-size:22px; font-weight:600;">Vetted Patent Claims</h3>
+                                    <button class="btn-editorial-primary" style="font-size:11px; padding:4px 8px;" onclick="switchTab('patents')"><span>[ VIEW ALL PATENTS → ]</span></button>
+                                </div>
+                                <div id="overview-patents-preview" class="patent-grid"></div>
+                            </div>
+
+                            <!-- Download Box -->
+                            <div style="background:var(--bg-paper-light); border:1px solid var(--rule-light); border-radius:var(--radius-sm); padding:30px; text-align:center; margin-top:50px;">
+                                <h4 style="font-family:'Newsreader', serif; font-size:18px; font-weight:600; margin-bottom:10px;">Download Compiled Dossier Brief</h4>
+                                <p style="color:var(--ink-secondary); font-size:13px; margin-bottom:20px;">Get a comprehensive PDF document including full-text verifications, detailed gap analysis formulas, and FTO audit statements.</p>
+                                <a href="#" id="pdf-download-btn" class="btn-editorial-primary" style="background:var(--accent-gold); border-color:var(--accent-gold); display:inline-block;" target="_blank">
+                                    <span>[ DOWNLOAD PDF DOSSIER ]</span>
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Papers Tab -->
+                        <div class="workspace-tab-content" id="tab-papers">
+                            <h2 style="font-family:'Newsreader', serif; font-size:24px; font-weight:600; margin-bottom:20px; border-bottom:1px solid var(--rule-light); padding-bottom:10px; color:var(--accent-green);">Verified Research Literature</h2>
+                            
+                            <!-- Search & Filters -->
+                            <div class="controls-row">
+                                <div class="filter-group">
+                                    <button class="filter-pill active" id="filter-papers-all" onclick="filterPapers('all')">All</button>
+                                    <button class="filter-pill" id="filter-papers-high" onclick="filterPapers('high')">High Relevance</button>
+                                    <button class="filter-pill" id="filter-papers-medium" onclick="filterPapers('medium')">Medium Relevance</button>
+                                    <button class="filter-pill" id="filter-papers-fulltext" onclick="filterPapers('fulltext')">Full Text</button>
+                                </div>
+                                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                                    <div style="display:flex; align-items:center; gap:6px;">
+                                        <label style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-muted);">SORT:</label>
+                                        <select id="sort-papers" class="search-input" style="padding:6px 10px; min-width:120px;" onchange="sortPapersList()">
+                                            <option value="relevance">Relevance ▼</option>
+                                            <option value="year">Year ▲</option>
+                                        </select>
+                                    </div>
+                                    <div class="search-wrapper">
+                                        <input type="text" id="search-papers" class="search-input" placeholder="Search papers..." oninput="searchPapersList()">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="papers-grid" class="card-grid">
+                                <!-- Dynamic papers grid -->
+                            </div>
+                        </div>
+
+                        <!-- Gaps Tab -->
+                        <div class="workspace-tab-content" id="tab-gaps">
+                            <h2 style="font-family:'Newsreader', serif; font-size:24px; font-weight:600; margin-bottom:20px; border-bottom:1px solid var(--rule-light); padding-bottom:10px; color:var(--accent-coral);">Identified Omissions & Gaps</h2>
+                            
+                            <!-- Search & Filters -->
+                            <div class="controls-row">
+                                <div class="filter-group">
+                                    <button class="filter-pill active" id="filter-gaps-all" onclick="filterGaps('all')">All</button>
+                                    <button class="filter-pill" id="filter-gaps-critical" onclick="filterGaps('critical')">Critical Severity</button>
+                                    <button class="filter-pill" id="filter-gaps-moderate" onclick="filterGaps('moderate')">Moderate Severity</button>
+                                </div>
+                                <div class="search-wrapper">
+                                    <input type="text" id="search-gaps" class="search-input" placeholder="Search gaps..." oninput="searchGapsList()">
+                                </div>
+                            </div>
+
+                            <div id="gaps-grid" class="card-grid">
+                                <!-- Dynamic gaps grid -->
+                            </div>
+                        </div>
+
+                        <!-- Patents Tab -->
+                        <div class="workspace-tab-content" id="tab-patents">
+                            <h2 style="font-family:'Newsreader', serif; font-size:24px; font-weight:600; margin-bottom:20px; border-bottom:1px solid var(--rule-light); padding-bottom:10px; color:var(--accent-gold);">Vetted Prior Art Patents</h2>
+                            
+                            <!-- Search & Filters -->
+                            <div class="controls-row">
+                                <div class="filter-group">
+                                    <button class="filter-pill active" id="filter-patents-all" onclick="filterPatents('all')">All</button>
+                                    <button class="filter-pill" id="filter-patents-priorart" onclick="filterPatents('priorart')">Prior Art</button>
+                                    <button class="filter-pill" id="filter-patents-overlap" onclick="filterPatents('overlap')">Overlap</button>
+                                </div>
+                                <div class="search-wrapper">
+                                    <input type="text" id="search-patents" class="search-input" placeholder="Search patents..." oninput="searchPatentsList()">
+                                </div>
+                            </div>
+
+                            <div id="patents-grid" class="patent-grid">
+                                <!-- Dynamic patents grid -->
+                            </div>
+                        </div>
+
+                        <!-- Report Tab -->
+                        <div class="workspace-tab-content" id="tab-report">
+                            <h2 style="font-family:'Newsreader', serif; font-size:24px; font-weight:600; margin-bottom:20px; border-bottom:1px solid var(--rule-light); padding-bottom:10px; color:var(--ink-primary);">Compiled Research Dossier</h2>
+                            
+                            <div class="card-grid" style="margin-bottom:30px;">
+                                <div class="interactive-card agent-4-card" onclick="openReportSection('executive')">
+                                    <div>
+                                        <div class="card-header-label">Section §1</div>
+                                        <h3 class="card-title">Executive Summary</h3>
+                                        <p style="font-size:13px; color:var(--ink-secondary); line-height:1.5;">Brief overview of literature findings, critical omissions, and patent prior art summary.</p>
+                                    </div>
+                                    <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; font-weight:700; color:var(--accent-gold); margin-top:15px; text-transform:uppercase;">[ READ SECTION → ]</div>
+                                </div>
+
+                                <div class="interactive-card agent-4-card" onclick="openReportSection('evidence')">
+                                    <div>
+                                        <div class="card-header-label">Section §2</div>
+                                        <h3 class="card-title">Research Evidence</h3>
+                                        <p style="font-size:13px; color:var(--ink-secondary); line-height:1.5;">Detailed review of the discovered literature, datasets, and relevance grading diagnostics.</p>
+                                    </div>
+                                    <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; font-weight:700; color:var(--accent-gold); margin-top:15px; text-transform:uppercase;">[ READ SECTION → ]</div>
+                                </div>
+
+                                <div class="interactive-card agent-4-card" onclick="openReportSection('gaps')">
+                                    <div>
+                                        <div class="card-header-label">Section §3</div>
+                                        <h3 class="card-title">Research Gaps</h3>
+                                        <p style="font-size:13px; color:var(--ink-secondary); line-height:1.5;">Empirically grounded gaps statement, severity matrix, and opportunity proposals.</p>
+                                    </div>
+                                    <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; font-weight:700; color:var(--accent-gold); margin-top:15px; text-transform:uppercase;">[ READ SECTION → ]</div>
+                                </div>
+
+                                <div class="interactive-card agent-4-card" onclick="openReportSection('patents')">
+                                    <div>
+                                        <div class="card-header-label">Section §4</div>
+                                        <h3 class="card-title">Patent Landscape</h3>
+                                        <p style="font-size:13px; color:var(--ink-secondary); line-height:1.5;">Audited prior art, Freedom to Operate (FTO) rating statements, and evasion strategies.</p>
+                                    </div>
+                                    <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; font-weight:700; color:var(--accent-gold); margin-top:15px; text-transform:uppercase;">[ READ SECTION → ]</div>
+                                </div>
+                            </div>
+
+                            <!-- Download Box -->
+                            <div style="background:var(--bg-paper-light); border:1px solid var(--rule-light); border-radius:var(--radius-sm); padding:30px; text-align:center;">
+                                <h4 style="font-family:'Newsreader', serif; font-size:18px; font-weight:600; margin-bottom:10px;">Download Compilation PDF</h4>
+                                <p style="color:var(--ink-secondary); font-size:13px; margin-bottom:20px;">Get a comprehensive PDF report including full-text verifications, detailed gap analysis formulas, and FTO audit statements.</p>
+                                <a href="#" id="pdf-download-btn-report" class="btn-editorial-primary" style="background:var(--accent-gold); border-color:var(--accent-gold); display:inline-block;" target="_blank">
+                                    <span>[ DOWNLOAD PDF DOSSIER ]</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
+    </div>
 
-    <!-- =========================================================================
-         FINAL REPORT VIEW
-         ========================================================================= -->
-    <div id="report-summary-view" class="report-summary-view">
-        <h1 class="report-summary-title">RESEARCH COMPLETE ✓</h1>
-        <p style="color:var(--ink-secondary); font-size:15px; margin-bottom:28px;" id="report-summary-topic">
-            Topic: "Multi-agent systems in artificial intelligence"
-        </p>
-
-        <div class="report-metrics-row">
-            <div class="report-metric-box">
-                <h3 style="font-size:32px; color:var(--ink-primary); font-family:'Newsreader', serif;" id="final-stat-papers">0</h3>
-                <p style="color:var(--ink-muted); font-size:12px; font-family:'IBM Plex Mono', monospace;">Papers Discovered</p>
-            </div>
-            <div class="report-metric-box">
-                <h3 style="font-size:32px; color:var(--accent-coral); font-family:'Newsreader', serif;" id="final-stat-gaps">0</h3>
-                <p style="color:var(--ink-muted); font-size:12px; font-family:'IBM Plex Mono', monospace;">Research Gaps</p>
-            </div>
-            <div class="report-metric-box">
-                <h3 style="font-size:32px; color:var(--accent-green); font-family:'Newsreader', serif;" id="final-stat-patents">0</h3>
-                <p style="color:var(--ink-muted); font-size:12px; font-family:'IBM Plex Mono', monospace;">Patents Vetted</p>
-            </div>
+    <!-- Shared Drawer Overlay & Backdrop -->
+    <div id="drawer-backdrop" class="drawer-backdrop" onclick="DrawerController.close()"></div>
+    <div id="detail-drawer" class="detail-drawer">
+        <div class="drawer-header">
+            <div id="drawer-title-label" class="drawer-title-label">DETAILS</div>
+            <button class="drawer-close-btn" onclick="DrawerController.close()">&times;</button>
         </div>
-
-        <div style="display:flex; justify-content:center; gap:20px;">
-            <button class="btn-editorial-primary" onclick="viewDetailedWorkspace()">
-                <span>[ VIEW REPORT ]</span>
+        <div id="drawer-content" class="drawer-content">
+            <!-- Dynamic content loaded by DrawerController -->
+        </div>
+        <div class="drawer-footer-nav">
+            <button id="drawer-prev-btn" class="drawer-nav-btn" onclick="DrawerController.prev()">
+                <span>← Previous</span>
             </button>
-            <a href="#" id="final-pdf-btn" class="btn-editorial-primary" style="background:var(--accent-gold); border-color:var(--accent-gold);" target="_blank">
-                <span>[ DOWNLOAD PDF ]</span>
-            </a>
+            <span id="drawer-index-label">1 / 1</span>
+            <button id="drawer-next-btn" class="drawer-nav-btn" onclick="DrawerController.next()">
+                <span>Next →</span>
+            </button>
         </div>
     </div>
 
@@ -2180,6 +3372,307 @@
          INTERACTIVE 3D ORBIT, MOUSE PARALLAX & APP LOGIC
          ========================================================================= -->
     <script>
+        // ── Redesign UX State & Drawer Controller ────────────────────────────
+        let currentFilterPapers = 'all';
+        let currentSearchPapers = '';
+        let currentSortPapers = 'relevance';
+        let currentFilterGaps = 'all';
+        let currentSearchGaps = '';
+        let currentFilterPatents = 'all';
+        let currentSearchPatents = '';
+
+        const DrawerController = {
+            isOpen: false,
+            currentType: null, // 'paper' | 'gap' | 'patent' | 'report'
+            currentIndex: 0,
+            items: [],
+
+            open: function(type, index, itemsList) {
+                this.currentType = type;
+                this.currentIndex = index;
+                this.items = itemsList || [];
+                this.isOpen = true;
+
+                document.getElementById('drawer-backdrop').classList.add('open');
+                document.getElementById('detail-drawer').classList.add('open');
+
+                this.render();
+            },
+
+            close: function() {
+                this.isOpen = false;
+                this.currentType = null;
+                this.currentIndex = 0;
+                this.items = [];
+
+                document.getElementById('drawer-backdrop').classList.remove('open');
+                document.getElementById('detail-drawer').classList.remove('open');
+            },
+
+            prev: function() {
+                if (this.currentIndex > 0) {
+                    this.currentIndex--;
+                    this.render();
+                }
+            },
+
+            next: function() {
+                if (this.currentIndex < this.items.length - 1) {
+                    this.currentIndex++;
+                    this.render();
+                }
+            },
+
+            render: function() {
+                const item = this.items[this.currentIndex];
+                const contentDiv = document.getElementById('drawer-content');
+                const labelSpan = document.getElementById('drawer-index-label');
+                const titleLabel = document.getElementById('drawer-title-label');
+
+                // Toggle Footer Buttons
+                document.getElementById('drawer-prev-btn').disabled = (this.currentIndex === 0);
+                document.getElementById('drawer-next-btn').disabled = (this.currentIndex === this.items.length - 1);
+                
+                labelSpan.innerText = `${this.currentIndex + 1} / ${this.items.length}`;
+
+                if (this.currentType === 'paper') {
+                    titleLabel.innerText = "PAPER DETAILS";
+                    
+                    let metaItems = [];
+                    if (item.full_text_available) metaItems.push(`<span class="card-metadata-item success-tag">FULL TEXT ✓</span>`);
+                    metaItems.push(`<span class="card-metadata-item">${item.year}</span>`);
+                    metaItems.push(`<span class="card-metadata-item">RELEVANCE: ${Math.round(item.relevance_score * 100)}%</span>`);
+                    if (item.full_text_word_count) metaItems.push(`<span class="card-metadata-item">${item.full_text_word_count.toLocaleString()} words</span>`);
+                    if (item.compression_ratio) metaItems.push(`<span class="card-metadata-item">${Math.round(item.compression_ratio * 100)}% compression</span>`);
+
+                    contentDiv.innerHTML = `
+                        <h2>${item.title}</h2>
+                        <p style="font-size: 13.5px; color: var(--ink-secondary); margin-bottom: 15px;">By ${item.authors.join(', ')}</p>
+                        
+                        <div class="card-metadata-strip" style="border-bottom: 1px solid var(--rule-light); padding-bottom: 12px; margin-bottom: 20px;">
+                            ${metaItems.join('')}
+                        </div>
+
+                        <div class="drawer-section-title">What it studies</div>
+                        <div class="drawer-section-content">${item.problem_statement || item.abstract || 'Not extracted'}</div>
+
+                        <div class="drawer-section-title">How it works</div>
+                        <div class="drawer-section-content">${item.technical_execution || item.methodology || 'Not extracted'}</div>
+
+                        <div class="drawer-section-title">What it achieves</div>
+                        <div class="drawer-section-content">${item.proposed_solution || item.results || 'Not extracted'}</div>
+
+                        <div class="drawer-section-title">Research Significance & Contribution</div>
+                        <div class="drawer-section-content">${item.research_significance || 'Not analyzed'}</div>
+
+                        <div class="drawer-section-title">Algorithmic Execution</div>
+                        <div class="drawer-section-content">${item.technical_execution || 'Not extracted'}</div>
+
+                        <div class="drawer-section-title">Datasets Utilized</div>
+                        <div class="drawer-section-content">${item.datasets && item.datasets.length ? item.datasets.join(', ') : 'None specified'}</div>
+
+                        <div style="margin-top: 30px;">
+                            <a href="${item.url}" target="_blank" class="btn-editorial-primary" style="display:inline-block;">
+                                <span>[ ORIGINAL SOURCE ]</span>
+                            </a>
+                        </div>
+                    `;
+                } else if (this.currentType === 'gap') {
+                    titleLabel.innerText = "GAP DETAILS";
+                    const sevClass = item.severity === 'Critical' ? 'badge-red' : (item.severity === 'Moderate' ? 'badge-yellow' : 'badge-green');
+                    
+                    contentDiv.innerHTML = `
+                        <h2>${item.gap_statement}</h2>
+                        <div style="margin-bottom: 20px;">
+                            <span class="badge ${sevClass}">${item.severity} Significance</span>
+                        </div>
+
+                        <div class="drawer-section-title">Why this gap exists</div>
+                        <div class="drawer-section-content">${item.why_it_matters || 'No additional explanation available.'}</div>
+
+                        <div class="drawer-section-title">Detailed Explanation</div>
+                        <div class="drawer-section-content">${item.description || 'No detailed description available.'}</div>
+
+                        <div class="drawer-section-title">Evidence & Supporting Papers</div>
+                        <div class="drawer-section-content">
+                            <ul style="padding-left: 20px; margin: 0;">
+                                ${item.evidence_papers.map(p => `<li style="margin-bottom: 8px;">${p}</li>`).join('')}
+                            </ul>
+                        </div>
+                        
+                        <div class="drawer-section-title">Potential Research Opportunity</div>
+                        <div class="drawer-section-content" style="background:var(--bg-paper-light); border-left:3px solid var(--accent-coral); padding:12px; border-radius:var(--radius-sm);">
+                            Opportunity exists to resolve this ${item.severity.toLowerCase()} limitation by applying combined methodology approaches.
+                        </div>
+                    `;
+                } else if (this.currentType === 'patent') {
+                    titleLabel.innerText = "PATENT DETAILS";
+                    const badgeClass = item.relevance === 'Prior Art' ? 'badge-red' : (item.relevance === 'Overlap' ? 'badge-yellow' : 'badge-green');
+                    
+                    contentDiv.innerHTML = `
+                        <h2>${item.title}</h2>
+                        <div style="margin-bottom: 20px; display:flex; gap:8px; flex-wrap:wrap;">
+                            <span class="badge ${badgeClass}">${item.relevance}</span>
+                            <span class="badge badge-purple">Relevance: ${item.relevance_score}%</span>
+                            <span class="badge badge-purple">FTO: ${item.fto_rating}</span>
+                        </div>
+
+                        <div class="drawer-section-title">Patent ID</div>
+                        <div class="drawer-section-content" style="font-family:'IBM Plex Mono', monospace; font-weight:700;">${item.patent_id}</div>
+
+                        <div class="drawer-section-title">Assignee & Inventors</div>
+                        <div class="drawer-section-content">
+                            Assignee: ${item.assignee || 'None'}<br>
+                            Inventors: ${item.inventors && item.inventors.length ? item.inventors.join(', ') : 'None'}
+                        </div>
+
+                        <div class="drawer-section-title">Filing & Publication Dates</div>
+                        <div class="drawer-section-content">
+                            Priority Date: ${item.priority_date || 'N/A'}<br>
+                            Publication Date: ${item.publication_date || 'N/A'}
+                        </div>
+
+                        <div class="drawer-section-title">Relevance Grading Gates</div>
+                        <div class="drawer-section-content">
+                            Domain Match: ${item.domain_match ? 'PASSED ✓' : 'FAILED ✗'}<br>
+                            Technical Match: ${item.technical_match ? 'PASSED ✓' : 'FAILED ✗'}
+                        </div>
+
+                        <div class="drawer-section-title">Why it is relevant</div>
+                        <div class="drawer-section-content">${item.why_relevant || item.summary || 'Prior art matching concepts found.'}</div>
+
+                        <div class="drawer-section-title">Claim / Technical Summary</div>
+                        <div class="drawer-section-content">${item.claims || item.summary || 'Summary not extracted.'}</div>
+
+                        <div class="drawer-section-title">Evasion Strategy</div>
+                        <div class="drawer-section-content" style="background:var(--bg-paper-light); border-left:3px solid var(--accent-gold); padding:12px; border-radius:var(--radius-sm);">
+                            ${item.design_around_strategy || 'No design-around strategy specified.'}
+                        </div>
+
+                        <div style="margin-top: 30px;">
+                            <a href="${item.url || '#'}" target="_blank" class="btn-editorial-primary" style="display:inline-block;">
+                                <span>[ GOOGLE PATENTS SOURCE ]</span>
+                            </a>
+                        </div>
+                    `;
+                } else if (this.currentType === 'report') {
+                    titleLabel.innerText = "REPORT SECTION";
+                    
+                    let sectionTitle = "";
+                    let sectionContent = "";
+                    if (item.id === 'executive') {
+                        sectionTitle = "Executive Summary";
+                        sectionContent = `
+                            <p>This dossier presents literature discovery, research gaps analysis, and patent landscape audits regarding the target topic. The coordinator vetted multiple sources for evidence grounding.</p>
+                            <p><b>Summary Metrics:</b></p>
+                            <ul>
+                                <li>Verified Literature: ${reportData.research.papers.length} publications</li>
+                                <li>Critical Gaps: ${reportData.gaps.gaps.length} omissions mapped</li>
+                                <li>Prior Art Patents: ${reportData.patents.patents.length} filings audited</li>
+                            </ul>
+                        `;
+                    } else if (item.id === 'evidence') {
+                        sectionTitle = "Research Evidence";
+                        sectionContent = `
+                            <p>Discoveries encompass literature matching technical concept gates. Below is the list of vetted publications:</p>
+                            <ul>
+                                ${reportData.research.papers.map(p => `<li><b>${p.title}</b> (${p.year}) - By ${p.authors.join(', ')}</li>`).join('')}
+                            </ul>
+                        `;
+                    } else if (item.id === 'gaps') {
+                        sectionTitle = "Research Gaps";
+                        sectionContent = `
+                            <p>Identified omissions in literature mapped against FTO limitations:</p>
+                            <ul>
+                                ${reportData.gaps.gaps.map(g => `<li><b>${g.gap_statement}</b> (${g.severity} severity)</li>`).join('')}
+                            </ul>
+                        `;
+                    } else if (item.id === 'patents') {
+                        sectionTitle = "Patent Landscape";
+                        sectionContent = `
+                            <p>Vetted patent prior art database search status: <b>${reportData.patents.patent_retrieval_status}</b>.</p>
+                            <ul>
+                                ${reportData.patents.patents.map(pat => `<li><b>${pat.patent_id}: ${pat.title}</b> - Assignee: ${pat.assignee}</li>`).join('')}
+                            </ul>
+                        `;
+                    }
+
+                    contentDiv.innerHTML = `
+                        <h2>${sectionTitle}</h2>
+                        <div class="drawer-section-content">${sectionContent}</div>
+                    `;
+                }
+            }
+        };
+
+        // Keyboard listeners for Drawer Navigation
+        window.addEventListener('keydown', function(event) {
+            if (!DrawerController.isOpen) return;
+            if (event.key === 'Escape' || event.key === 'Esc') {
+                DrawerController.close();
+            } else if (event.key === 'ArrowLeft') {
+                DrawerController.prev();
+            } else if (event.key === 'ArrowRight') {
+                DrawerController.next();
+            }
+        });
+
+        // Search and Filters Handlers
+        function filterPapers(val) {
+            currentFilterPapers = val;
+            document.querySelectorAll('#tab-papers .filter-pill').forEach(btn => btn.classList.remove('active'));
+            const activeBtn = document.getElementById(`filter-papers-${val}`);
+            if (activeBtn) activeBtn.classList.add('active');
+            renderPapersGrid();
+        }
+
+        function searchPapersList() {
+            currentSearchPapers = document.getElementById('search-papers').value.toLowerCase().trim();
+            renderPapersGrid();
+        }
+
+        function sortPapersList() {
+            currentSortPapers = document.getElementById('sort-papers').value;
+            renderPapersGrid();
+        }
+
+        function filterGaps(val) {
+            currentFilterGaps = val;
+            document.querySelectorAll('#tab-gaps .filter-pill').forEach(btn => btn.classList.remove('active'));
+            const activeBtn = document.getElementById(`filter-gaps-${val}`);
+            if (activeBtn) activeBtn.classList.add('active');
+            renderGapsGrid();
+        }
+
+        function searchGapsList() {
+            currentSearchGaps = document.getElementById('search-gaps').value.toLowerCase().trim();
+            renderGapsGrid();
+        }
+
+        function filterPatents(val) {
+            currentFilterPatents = val;
+            document.querySelectorAll('#tab-patents .filter-pill').forEach(btn => btn.classList.remove('active'));
+            const activeBtn = document.getElementById(`filter-patents-${val}`);
+            if (activeBtn) activeBtn.classList.add('active');
+            renderPatentsGrid();
+        }
+
+        function searchPatentsList() {
+            currentSearchPatents = document.getElementById('search-patents').value.toLowerCase().trim();
+            renderPatentsGrid();
+        }
+
+        function openReportSection(sectionId) {
+            const sections = [
+                { id: 'executive' },
+                { id: 'evidence' },
+                { id: 'gaps' },
+                { id: 'patents' }
+            ];
+            const index = sections.findIndex(s => s.id === sectionId);
+            DrawerController.open('report', index, sections);
+        }
+
         // ── View Switching & Routing ────────────────────────────────────────
         function openQuestionView() {
             document.getElementById('landing-view').style.display = 'none';
@@ -2217,7 +3710,8 @@
             document.getElementById('question-view').style.display = 'none';
             document.getElementById('confirm-view').style.display = 'none';
             document.getElementById('workspace-view').style.display = 'none';
-            document.getElementById('report-summary-view').style.display = 'none';
+            document.getElementById('workspace-results-container').style.display = 'none';
+            document.getElementById('workspace-run-container').style.display = 'block';
             document.getElementById('landing-view').style.display = 'block';
             document.getElementById('landing-view').style.opacity = '1';
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2496,6 +3990,16 @@
             const query = document.getElementById('topic-query').value.trim();
             const logContainer = document.getElementById('log-items-container');
 
+            // Reset containers for pipeline execution
+            document.getElementById('workspace-run-container').style.display = 'block';
+            document.getElementById('workspace-results-container').style.display = 'none';
+
+            // Reset live log items
+            logContainer.innerHTML = `
+                <div class="log-item complete">Research topic received</div>
+                <div class="log-item working" id="log-working-item">Searching scholarly sources...</div>
+            `;
+
             // Switch to staged workspace view
             showAgentPanel(1);
 
@@ -2580,108 +4084,300 @@
         }
 
         function showFinalReportScreen(data) {
-            document.getElementById('workspace-view').style.display = 'none';
-            document.getElementById('report-summary-view').style.display = 'block';
-            document.getElementById('report-summary-view').style.opacity = '1';
+            // Hide progress run view, show results view directly
+            document.getElementById('workspace-run-container').style.display = 'none';
+            document.getElementById('workspace-results-container').style.display = 'block';
 
-            document.getElementById('report-summary-topic').innerText = `Topic: "${data.topic || 'Research Topic'}"`;
-            document.getElementById('final-stat-papers').innerText = data.research.papers.length;
-            document.getElementById('final-stat-gaps').innerText = data.gaps.gaps.length;
-            document.getElementById('final-stat-patents').innerText = data.patents.patents.length;
-
-            if (data.pdf_filename) {
-                document.getElementById('final-pdf-btn').href = `/api/download/${data.pdf_filename}`;
-            }
+            // Populate the completed topic title and trigger dashboard render
+            document.getElementById('results-topic-title').innerText = `"${data.topic || 'Research Topic'}"`;
+            renderDashboard(data);
         }
 
-        function viewDetailedWorkspace() {
-            // Preserves standard workspace layout view
-            document.getElementById('report-summary-view').style.display = 'none';
-            openWorkspace();
-            renderDashboard(reportData);
+        function switchTab(tabName) {
+            // Remove active class from buttons & contents
+            document.querySelectorAll('.workspace-nav-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.workspace-tab-content').forEach(content => content.classList.remove('active'));
+            
+            // Set active
+            const targetBtn = document.getElementById(`btn-${tabName}`);
+            const targetContent = document.getElementById(`tab-${tabName}`);
+            if (targetBtn) targetBtn.classList.add('active');
+            if (targetContent) targetContent.classList.add('active');
         }
 
         function renderDashboard(data) {
+            reportData = data; // store globally
+
+            // Set main statistics
             document.getElementById('stat-papers').innerText = data.research.papers.length;
             document.getElementById('stat-gaps').innerText = data.gaps.gaps.length;
             document.getElementById('stat-patents').innerText = data.patents.patents.length;
 
-            const papersList = document.getElementById('papers-list');
-            papersList.innerHTML = '';
-            data.research.papers.forEach(paper => {
-                const rankClass = paper.relevance_rank === 'High' ? 'badge-green' : (paper.relevance_rank === 'Medium' ? 'badge-yellow' : 'badge-red');
-                papersList.innerHTML += `
-                    <div class="paper-card">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap;">
-                            <h4 style="margin-bottom: 5px; color: var(--ink-primary); font-family: 'Newsreader', serif; font-size: 18px;">${paper.title}</h4>
-                            <div style="display: flex; gap: 6px; flex-shrink: 0;">
-                                <span class="badge ${rankClass}">${paper.relevance_rank} Relevance</span>
-                                <span class="badge badge-purple">Score: ${Math.round(paper.relevance_score * 100)}%</span>
-                            </div>
-                        </div>
-                        <p style="font-size: 13px; color: var(--ink-muted); margin-bottom: 12px;">
-                            By ${paper.authors.join(', ')} (${paper.year})
-                        </p>
-                        
-                        <div style="background: var(--bg-paper-card); padding: 14px; border-radius: var(--radius-sm); border-left: 3px solid var(--accent-gold); margin-bottom: 12px;">
-                            <p style="font-size: 12.5px; font-weight: 600; color: var(--accent-gold); margin-bottom: 8px; font-family:'IBM Plex Mono', monospace;">SUMMARY:</p>
-                            <ul style="list-style: none; padding: 0; margin: 0;">
-                                ${paper.notebook_summary.split('•').filter(s => s.trim()).map(bullet => 
-                                    `<li style="font-size: 13.5px; line-height: 1.6; color: var(--ink-primary); padding: 3px 0; display: flex; gap: 8px;"><span style="color:var(--accent-gold); font-weight:700; flex-shrink:0;">→</span><span>${bullet.trim()}</span></li>`
-                                ).join('')}
-                            </ul>
-                        </div>
-                    </div>
-                `;
-            });
+            // Update sticky sidebar badges
+            document.getElementById('badge-papers').innerText = data.research.papers.length;
+            document.getElementById('badge-gaps').innerText = data.gaps.gaps.length;
+            document.getElementById('badge-patents').innerText = data.patents.patents.length;
 
-            const paperGapsList = document.getElementById('paper-gaps-list');
-            paperGapsList.innerHTML = '';
-            data.research.papers.forEach(paper => {
-                if (!paper.gap_description) return;
-                const sevClass = paper.gap_severity === 'Critical' ? 'badge-red' : (paper.gap_severity === 'Moderate' ? 'badge-yellow' : 'badge-green');
-                paperGapsList.innerHTML += `
-                    <div class="paper-card" style="border-left: 4px solid var(--accent-coral);">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
-                            <h4 style="color: var(--ink-primary); font-family: 'Newsreader', serif; font-size: 17px;">${paper.title}</h4>
-                            <span class="badge ${sevClass}">${paper.gap_severity} Severity</span>
-                        </div>
-                        <p style="font-size: 14px; line-height: 1.5; color: var(--ink-primary); margin-bottom: 8px;"><b>Gap:</b> ${paper.gap_description}</p>
-                    </div>
-                `;
-            });
+            // 1. Executive Summary Bullets
+            const summaryList = document.getElementById('overview-summary-list');
+            summaryList.innerHTML = '';
+            
+            const bullet1 = document.createElement('li');
+            bullet1.innerHTML = `<span style="color:var(--accent-gold);">•</span> Discovery agent found <strong>${data.research.papers.length} papers</strong> matching conceptual and technical relevance criteria.`;
+            summaryList.appendChild(bullet1);
+            
+            const bullet2 = document.createElement('li');
+            bullet2.innerHTML = `<span style="color:var(--accent-gold);">•</span> Gap analysis mapped <strong>${data.gaps.gaps.length} omissions</strong> in verified publications.`;
+            summaryList.appendChild(bullet2);
+            
+            const bullet3 = document.createElement('li');
+            bullet3.innerHTML = `<span style="color:var(--accent-gold);">•</span> Patent audit screened prior art, identifying <strong>${data.patents.patents.length} filings</strong> with FTO rating metrics.`;
+            summaryList.appendChild(bullet3);
 
-            const patentsList = document.getElementById('patents-list');
-            patentsList.innerHTML = '';
-            data.patents.patents.forEach(pat => {
-                const badgeClass = pat.relevance === 'Prior Art' ? 'badge-red' : (pat.relevance === 'Overlap' ? 'badge-yellow' : 'badge-green');
-                patentsList.innerHTML += `
-                    <div class="patent-card">
-                        <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
-                            <span class="badge ${badgeClass}">${pat.relevance}</span>
-                            <span class="badge badge-purple">Relevance: ${pat.relevance_score}/100</span>
-                        </div>
-                        <h4 style="margin-bottom: 5px; font-family: 'Newsreader', serif; font-size: 17px;">Patent ID: ${pat.patent_id} — ${pat.title}</h4>
-                        <p style="font-size: 13px; color: var(--ink-muted); margin-bottom: 10px;">Assignee: ${pat.assignee}</p>
-                    </div>
-                `;
-            });
+            if (data.gaps.proposed_method) {
+                const bullet4 = document.createElement('li');
+                bullet4.innerHTML = `<span style="color:var(--accent-gold);">•</span> Formulated proposed model <strong>${data.gaps.proposed_method.title}</strong> (Novelty Index: <strong>${data.gaps.proposed_method.novelty_score}/100</strong>).`;
+                summaryList.appendChild(bullet4);
+            }
 
+            // 2. Research Signals
+            const highestPaper = data.research.papers.reduce((prev, current) => (prev.relevance_score > current.relevance_score) ? prev : current, { title: 'None discovered', relevance_score: 0 });
+            document.getElementById('signal-evidence').innerHTML = `<strong>${highestPaper.title}</strong> (Relevance: ${Math.round(highestPaper.relevance_score * 100)}%). ${highestPaper.why_selected || ''}`;
+            
+            if (data.gaps.gaps.length > 0) {
+                const mainGap = data.gaps.gaps[0];
+                document.getElementById('signal-gap').innerHTML = `<strong>${mainGap.gap_statement}</strong> (${mainGap.severity} Severity). ${mainGap.description || ''}`;
+            } else {
+                document.getElementById('signal-gap').innerText = 'No empirical gaps identified in the discovered literature.';
+            }
+
+            if (data.patents.patents.length > 0) {
+                const mainPatent = data.patents.patents[0];
+                document.getElementById('signal-patent').innerHTML = `<strong>${mainPatent.patent_id} — ${mainPatent.title}</strong> (${mainPatent.relevance}). ${mainPatent.why_relevant || ''}`;
+            } else if (data.patents.white_space_opportunities && data.patents.white_space_opportunities.length > 0) {
+                document.getElementById('signal-patent').innerHTML = `<strong>White Space Segment:</strong> ${data.patents.white_space_opportunities[0]}`;
+            } else {
+                document.getElementById('signal-patent').innerText = 'FTO audit status: Clean. No blocking prior art patents detected.';
+            }
+
+            // 3. Render Grid Panels
+            renderOverviewPreviews();
+            renderPapersGrid();
+            renderGapsGrid();
+            renderPatentsGrid();
+
+            // Set Download PDF buttons
             if (data.pdf_filename) {
-                document.getElementById('pdf-download-btn').href = `/api/download/${data.pdf_filename}`;
+                const downloadUrl = `/api/download/${data.pdf_filename}`;
+                document.getElementById('pdf-download-btn').href = downloadUrl;
+                document.getElementById('pdf-download-btn-report').href = downloadUrl;
             }
 
             document.getElementById('dashboard').style.display = 'grid';
             switchTab('overview');
         }
 
-        function openWorkspace() {
-            document.getElementById('landing-view').style.display = 'none';
-            document.getElementById('workspace-view').style.display = 'block';
-            document.getElementById('workspace-view').style.opacity = '1';
-            document.getElementById('status-tracker').style.display = 'none';
-            document.getElementById('dashboard').style.display = 'grid';
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+        // ── Render Card Grids and Previews ───────────────────────────────────
+
+        function renderOverviewPreviews() {
+            // Papers Preview (Top 3)
+            const papersPreview = document.getElementById('overview-papers-preview');
+            papersPreview.innerHTML = '';
+            reportData.research.papers.slice(0, 3).forEach((paper, idx) => {
+                papersPreview.appendChild(createPaperCard(paper, idx, reportData.research.papers));
+            });
+
+            // Gaps Preview (Top 2)
+            const gapsPreview = document.getElementById('overview-gaps-preview');
+            gapsPreview.innerHTML = '';
+            reportData.gaps.gaps.slice(0, 2).forEach((gap, idx) => {
+                gapsPreview.appendChild(createGapCard(gap, idx, reportData.gaps.gaps));
+            });
+
+            // Patents Preview (Top 2)
+            const patentsPreview = document.getElementById('overview-patents-preview');
+            patentsPreview.innerHTML = '';
+            reportData.patents.patents.slice(0, 2).forEach((pat, idx) => {
+                patentsPreview.appendChild(createPatentCard(pat, idx, reportData.patents.patents));
+            });
+        }
+
+        function createPaperCard(paper, index, list) {
+            const card = document.createElement('div');
+            card.className = 'interactive-card agent-1-card';
+            card.onclick = () => DrawerController.open('paper', index, list);
+            
+            // Format authors
+            const authorStr = paper.authors.join(' · ');
+
+            // Formulate Key Findings based on backend summaries
+            const bullets = paper.notebook_summary.split('•').map(b => b.trim()).filter(Boolean).slice(0, 3);
+            const findingsHtml = bullets.map(b => `<li><span>•</span>${b}</li>`).join('');
+
+            // Metadata items
+            let metaHtml = '';
+            if (paper.full_text_available) metaHtml += `<div class="card-metadata-item success-tag">FULL TEXT ✓</div>`;
+            metaHtml += `<div class="card-metadata-item">${paper.year}</div>`;
+            metaHtml += `<div class="card-metadata-item">RELEVANCE ${Math.round(paper.relevance_score * 100)}%</div>`;
+
+            card.innerHTML = `
+                <div>
+                    <div class="card-header-block">
+                        <div class="card-header-label">PAPER ${String(index + 1).padStart(2, '0')}</div>
+                        <h3 class="card-title">${paper.title}</h3>
+                        <div class="card-authors">${authorStr}</div>
+                    </div>
+                    
+                    <div class="card-key-findings">
+                        <div class="card-key-findings-title">Key Findings</div>
+                        <ul>${findingsHtml || '<li><span>•</span>Grounded literature review summary available.</li>'}</ul>
+                    </div>
+                </div>
+                
+                <div class="card-metadata-strip">
+                    ${metaHtml}
+                </div>
+            `;
+            return card;
+        }
+
+        function renderPapersGrid() {
+            const papersGrid = document.getElementById('papers-grid');
+            papersGrid.innerHTML = '';
+
+            // Filter
+            let filtered = reportData.research.papers.filter(paper => {
+                // Search term match
+                const matchSearch = !currentSearchPapers || 
+                    paper.title.toLowerCase().includes(currentSearchPapers) || 
+                    paper.authors.join(' ').toLowerCase().includes(currentSearchPapers);
+                
+                if (!matchSearch) return false;
+
+                // Relevance Filter
+                if (currentFilterPapers === 'high') return paper.relevance_rank === 'High';
+                if (currentFilterPapers === 'medium') return paper.relevance_rank === 'Medium';
+                if (currentFilterPapers === 'fulltext') return paper.full_text_available === true;
+
+                return true;
+            });
+
+            // Sort
+            if (currentSortPapers === 'relevance') {
+                filtered.sort((a, b) => b.relevance_score - a.relevance_score);
+            } else if (currentSortPapers === 'year') {
+                filtered.sort((a, b) => a.year - b.year);
+            }
+
+            // Populate Grid
+            filtered.forEach((paper, idx) => {
+                papersGrid.appendChild(createPaperCard(paper, idx, filtered));
+            });
+
+            if (filtered.length === 0) {
+                papersGrid.innerHTML = `<div style="grid-column:1/-1; padding:40px; text-align:center; color:var(--ink-secondary); font-style:italic;">No papers matched search or filter criteria.</div>`;
+            }
+        }
+
+        function createGapCard(gap, index, list) {
+            const card = document.createElement('div');
+            card.className = 'interactive-card agent-2-card';
+            card.onclick = () => DrawerController.open('gap', index, list);
+            const sevClass = gap.severity === 'Critical' ? 'badge-red' : (gap.severity === 'Moderate' ? 'badge-yellow' : 'badge-green');
+
+            card.innerHTML = `
+                <div>
+                    <div class="card-header-block" style="min-height: 90px; margin-bottom: 12px;">
+                        <div class="card-header-label">GAP ${String(index + 1).padStart(2, '0')}</div>
+                        <h3 class="card-title">${gap.gap_statement}</h3>
+                    </div>
+                    <div style="margin-bottom:15px;">
+                        <span class="badge ${sevClass}">${gap.severity} Significance</span>
+                    </div>
+                    <p style="font-size:13px; color:var(--ink-secondary); line-height:1.5;">${gap.description || 'Gap identified in discovered literature.'}</p>
+                </div>
+                <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; font-weight:700; color:var(--accent-coral); margin-top:20px; text-transform:uppercase;">[ VIEW GAP → ]</div>
+            `;
+            return card;
+        }
+
+        function renderGapsGrid() {
+            const gapsGrid = document.getElementById('gaps-grid');
+            gapsGrid.innerHTML = '';
+
+            let filtered = reportData.gaps.gaps.filter(gap => {
+                const matchSearch = !currentSearchGaps || 
+                    gap.gap_statement.toLowerCase().includes(currentSearchGaps) || 
+                    gap.description.toLowerCase().includes(currentSearchGaps);
+                
+                if (!matchSearch) return false;
+
+                if (currentFilterGaps === 'critical') return gap.severity === 'Critical';
+                if (currentFilterGaps === 'moderate') return gap.severity === 'Moderate';
+
+                return true;
+            });
+
+            filtered.forEach((gap, idx) => {
+                gapsGrid.appendChild(createGapCard(gap, idx, filtered));
+            });
+
+            if (filtered.length === 0) {
+                gapsGrid.innerHTML = `<div style="grid-column:1/-1; padding:40px; text-align:center; color:var(--ink-secondary); font-style:italic;">No research gaps matched search or filter criteria.</div>`;
+            }
+        }
+
+        function createPatentCard(pat, index, list) {
+            const card = document.createElement('div');
+            card.className = 'interactive-card agent-3-card';
+            card.onclick = () => DrawerController.open('patent', index, list);
+            const badgeClass = pat.relevance === 'Prior Art' ? 'badge-red' : (pat.relevance === 'Overlap' ? 'badge-yellow' : 'badge-green');
+
+            card.innerHTML = `
+                <div>
+                    <div class="card-header-block" style="min-height: 100px; margin-bottom: 12px;">
+                        <div class="card-header-label">PATENT ${String(index + 1).padStart(2, '0')}</div>
+                        <h3 class="card-title">${pat.title}</h3>
+                        <div style="font-family:'IBM Plex Mono', monospace; font-size:12px; font-weight:700; color:var(--ink-primary);">ID: ${pat.patent_id}</div>
+                    </div>
+                    <div style="margin-bottom:12px;">
+                        <span class="badge ${badgeClass}">${pat.relevance} (${pat.relevance_score}%)</span>
+                    </div>
+                    <p style="font-size:12.5px; color:var(--ink-secondary); line-height:1.4; margin-bottom:10px;">Assignee: ${pat.assignee}</p>
+                </div>
+                
+                <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; font-weight:700; color:var(--accent-gold); margin-top:20px; text-transform:uppercase;">
+                    [ VIEW PATENT → ]
+                </div>
+            `;
+            return card;
+        }
+
+        function renderPatentsGrid() {
+            const patentsGrid = document.getElementById('patents-grid');
+            patentsGrid.innerHTML = '';
+
+            let filtered = reportData.patents.patents.filter(pat => {
+                const matchSearch = !currentSearchPatents || 
+                    pat.title.toLowerCase().includes(currentSearchPatents) || 
+                    pat.patent_id.toLowerCase().includes(currentSearchPatents) || 
+                    pat.assignee.toLowerCase().includes(currentSearchPatents);
+                
+                if (!matchSearch) return false;
+
+                if (currentFilterPatents === 'priorart') return pat.relevance === 'Prior Art';
+                if (currentFilterPatents === 'overlap') return pat.relevance === 'Overlap';
+
+                return true;
+            });
+
+            filtered.forEach((pat, idx) => {
+                patentsGrid.appendChild(createPatentCard(pat, idx, filtered));
+            });
+
+            if (filtered.length === 0) {
+                patentsGrid.innerHTML = `<div style="grid-column:1/-1; padding:40px; text-align:center; color:var(--ink-secondary); font-style:italic;">No patent prior art matched search or filter criteria.</div>`;
+            }
         }
     </script>
 </body>
