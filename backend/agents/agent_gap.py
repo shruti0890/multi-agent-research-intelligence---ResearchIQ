@@ -371,12 +371,12 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
           "gap_id": "GAP-01",
           "paper_title": "Exact Title of Paper",
           "paper_id": "P001",
-          "gap_statement": "Unique gap specific to this paper grounded in its evidence (1 sentence)",
-          "gap_description": "Detailed explanation of this research gap (1-2 sentences)",
-          "gap_impact": "Why this blocks real-world adoption (1 sentence)",
-          "gap_why_exists": "Technical or data reason this gap exists (1 sentence)",
-          "gap_opportunity": "Actionable research opportunity (1 sentence)",
-          "gap_future_scope": "Long-term vision (1 sentence)",
+          "gap_statement": "Concise academic title statement for this specific gap (1 sentence)",
+          "gap_description": "Comprehensive, highly detailed multi-sentence explanation (3-4 sentences) explaining the paper's specific architectural or empirical limitation, how its methodology fails under specific conditions, and what benchmark or theoretical constraints were left unaddressed according to the paper.",
+          "gap_impact": "Why this blocks real-world adoption or performance in production deployments (1-2 sentences)",
+          "gap_why_exists": "Exact technical, mathematical, or dataset reason why this limitation exists in the paper's design (1-2 sentences)",
+          "gap_opportunity": "Concrete, actionable research opportunity or hybrid extension to overcome this limitation (1-2 sentences)",
+          "gap_future_scope": "Long-term vision for resolving this gap (1 sentence)",
           "gap_severity": "Critical",
           "supporting_sections": ["limitations"],
           "supporting_sentence_ids": ["P001-LIM-01"],
@@ -442,13 +442,47 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
 
             gap_id = f"GAP-{idx+1:02d}"
             if match:
-                gap_stmt = match.get("gap_statement") or match.get("gap_description") or "Methodology limitations."
-                p.gap_description = gap_stmt
-                p.gap_impact = match.get("gap_impact", "Blocks real-world deployment.")
-                p.gap_why_exists = match.get("gap_why_exists", "Technical data constraints.")
-                p.gap_opportunity = match.get("gap_opportunity", "Implement scalable hybrid models.")
-                p.gap_future_scope = match.get("gap_future_scope", "Extend validation splits.")
+                raw_stmt = (match.get("gap_statement") or "").strip()
+                raw_desc = (match.get("gap_description") or "").strip()
+                raw_impact = (match.get("gap_impact") or "").strip()
+                raw_why = (match.get("gap_why_exists") or "").strip()
+                raw_opp = (match.get("gap_opportunity") or "").strip()
+
+                # 1. Statement: concise academic title of the limitation
+                if raw_stmt:
+                    gap_stmt = raw_stmt
+                elif raw_desc:
+                    gap_stmt = raw_desc.split(".")[0] + "."
+                else:
+                    gap_stmt = f"Methodology limitation in '{p.title[:50]}...'"
+
+                # 2. Detailed explanation: multi-sentence comprehensive explanation!
+                if raw_desc and len(raw_desc) > 50 and raw_desc != gap_stmt:
+                    detailed_explanation = raw_desc
+                else:
+                    context_parts = [gap_stmt]
+                    if getattr(p, 'problem_statement', '') and p.problem_statement != 'Not extracted':
+                        context_parts.append(f"While addressing {p.problem_statement}, the proposed methodology faces empirical constraints.")
+                    if raw_why:
+                        context_parts.append(f"Technically, the model is constrained by {raw_why}.")
+                    if raw_impact:
+                        context_parts.append(f"Consequently, {raw_impact}")
+                    detailed_explanation = " ".join(context_parts)
+
+                p.gap_description = detailed_explanation
+                p.gap_impact = raw_impact or "Restricts production scalability."
+                p.gap_why_exists = raw_why or "Algorithmic or data sparsity constraints."
+                p.gap_opportunity = raw_opp or "Develop adaptive hybrid methods."
+                p.gap_future_scope = match.get("gap_future_scope", "Extend validation to multi-institutional benchmarks.")
                 p.gap_severity = match.get("gap_severity", "Moderate")
+
+                # Combine why_it_matters for ResearchGap
+                why_matters_parts = []
+                if p.gap_why_exists:
+                    why_matters_parts.append(f"Technical Cause: {p.gap_why_exists}")
+                if p.gap_impact:
+                    why_matters_parts.append(f"Operational Impact: {p.gap_impact}")
+                why_matters = "\n".join(why_matters_parts) if why_matters_parts else "Blocks production deployment."
 
                 # Supporting evidence IDs & sections
                 supp_pids = match.get("supporting_paper_ids") or [pid]
@@ -468,12 +502,14 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
                     ]
             else:
                 gap_stmt = f"Scalability and robustness constraints in '{p.title[:45]}...' model."
-                p.gap_description = gap_stmt
+                detailed_explanation = f"In the evaluation of '{p.title}', the methodology exhibits key constraints under real-world domain shifts. While addressing target domain challenges, the approach is limited by data representation bottlenecks, preventing robust generalization across multi-site benchmarks."
+                p.gap_description = detailed_explanation
                 p.gap_impact = "Restricts the ability to adapt to complex real-world edge cases."
                 p.gap_why_exists = "Data sparsity or lack of scalable model representations."
                 p.gap_opportunity = "Integrate multi-modal context vectors."
                 p.gap_future_scope = "Ablation testing on public cross-domain benchmarks."
                 p.gap_severity = "Moderate"
+                why_matters = f"Technical Cause: {p.gap_why_exists}\nOperational Impact: {p.gap_impact}"
                 supp_pids = [pid]
                 supp_secs = ["methodology"]
                 supp_sent_ids = []
@@ -482,9 +518,10 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
             gaps_list.append(ResearchGap(
                 gap_id=gap_id,
                 gap_statement=gap_stmt,
-                description=p.gap_description,
+                description=detailed_explanation,
                 severity=p.gap_severity,
-                why_it_matters=p.gap_impact,
+                why_it_matters=why_matters,
+                opportunity=p.gap_opportunity,
                 supporting_paper_ids=supp_pids,
                 supporting_sections=supp_secs,
                 supporting_sentence_ids=supp_sent_ids,
@@ -643,20 +680,35 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
                 extracted_desc = f"Addresses '{problem}' with constraints under dynamic real-world environments."
 
             template = gap_templates[idx % len(gap_templates)]
-            if not extracted_desc:
-                extracted_desc = f"As reported for '{paper.title[:45]}...': {template['desc']}"
-                extracted_impact = f"For '{paper.title[:45]}...': {template['impact']}"
-                extracted_why = template["why"]
-                extracted_opp = template["opportunity"]
-                extracted_fut = template["future"]
+            gap_stmt = f"Methodological limitation in '{paper.title[:55]}...'"
+            
+            detail_sentences = []
+            if problem and problem not in ("Not extracted", "Not available in abstract."):
+                detail_sentences.append(f"In evaluating '{paper.title}', the authors address '{problem}'.")
             else:
-                extracted_desc = f"Limitation in '{paper.title[:45]}...': {extracted_desc}"
-                extracted_impact = f"For '{paper.title[:45]}...': {template['impact']}"
-                extracted_why = f"Due to '{methodology[:50]}' constraints: {template['why']}" if methodology and methodology != "Not extracted" else template["why"]
-                extracted_opp = template["opportunity"]
-                extracted_fut = template["future"]
+                detail_sentences.append(f"In evaluating '{paper.title}', empirical analysis reveals structural constraints.")
 
-            paper.gap_description = extracted_desc
+            if extracted_desc:
+                detail_sentences.append(f"Specifically, the paper notes: \"{extracted_desc}\"")
+            elif challenges and challenges not in ("Not extracted", "Not available in abstract.", "Not detailed"):
+                detail_sentences.append(f"Key challenges identified include: {challenges}")
+            else:
+                detail_sentences.append(template["desc"])
+
+            if methodology and methodology != "Not extracted":
+                detail_sentences.append(f"The underlying '{methodology[:50]}' framework is constrained because {template['why']}")
+            else:
+                detail_sentences.append(f"Technically, {template['why']}")
+
+            detail_sentences.append(f"As a result, {template['impact']}")
+
+            detailed_explanation = " ".join(detail_sentences)
+            extracted_impact = template["impact"]
+            extracted_why = template["why"]
+            extracted_opp = template["opportunity"]
+            extracted_fut = template["future"]
+
+            paper.gap_description = detailed_explanation
             paper.gap_impact = extracted_impact
             paper.gap_why_exists = extracted_why
             paper.gap_opportunity = extracted_opp
@@ -665,12 +717,15 @@ def cluster_and_analyze_gaps(research_data: Agent1ResearchOutput) -> Agent2GapOu
             supp_sent_ids = [extracted_sent_id] if extracted_sent_id else []
             ev_refs = [f"{pid} | {extracted_sec} | {extracted_sent_id} | {extracted_desc[:120]}"] if extracted_sent_id else None
 
+            why_matters = f"Technical Cause: {extracted_why}\nOperational Impact: {extracted_impact}"
+
             fallback_gaps.append(ResearchGap(
                 gap_id=gap_id,
-                gap_statement=extracted_desc,
-                description=paper.gap_description,
+                gap_statement=gap_stmt,
+                description=detailed_explanation,
                 severity=paper.gap_severity,
-                why_it_matters=paper.gap_impact,
+                why_it_matters=why_matters,
+                opportunity=extracted_opp,
                 supporting_paper_ids=[pid],
                 supporting_sections=[extracted_sec],
                 supporting_sentence_ids=supp_sent_ids,

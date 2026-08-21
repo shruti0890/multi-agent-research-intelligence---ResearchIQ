@@ -148,6 +148,7 @@ class ResearchGap(BaseModel):
     description: str = Field(default="", description="Detailed explanation of the research gap or unsolved limitation")
     severity: str = Field(default="Moderate", description="Severity: Critical, Moderate, or Minor")
     why_it_matters: str = Field(default="", description="Explanation of why this gap prevents commercial progress")
+    opportunity: str = Field(default="", description="Actionable research direction or solution path to overcome this gap")
     supporting_paper_ids: List[str] = Field(default_factory=list, description="IDs of supporting papers (e.g. ['P001', 'P002'])")
     supporting_sections: List[str] = Field(default_factory=list, description="Sections containing supporting evidence (e.g. ['methodology', 'limitations'])")
     supporting_sentence_ids: List[str] = Field(default_factory=list, description="Verbatim supporting sentence IDs (e.g. ['P001-METH-02', 'P002-LIM-01'])")
