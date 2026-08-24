@@ -26,29 +26,29 @@ ResearchIQ operates on a 4-Agent pipeline designed for strict data validation, s
 
 ```mermaid
 flowchart TD
-    User([User Query / Research Topic]) --> Decomp[Topic Decomposition Engine]
+    User(["User Query / Research Topic"]) --> Decomp["Topic Decomposition Engine"]
     
     subgraph Agent1 ["Agent 1: Primary Literature Researcher"]
-        Decomp --> Retr[Federated Literature Retrieval\narXiv | PubMed | EuropePMC | OpenAlex]
-        Retr --> Gate[Relevance & Quality Gate\nWords >= 300 & Domain Match]
-        Gate --> Comp[Section Parser & Fact Sheet Generator]
+        Decomp --> Retr["Federated Literature Retrieval<br/>(arXiv, PubMed, EuropePMC, OpenAlex)"]
+        Retr --> Gate["Relevance & Quality Gate<br/>(Words >= 300 & Domain Match)"]
+        Gate --> Comp["Section Parser & Fact Sheet Generator"]
     end
 
     subgraph Agent2 ["Agent 2: Research Gap Analyst"]
-        Comp --> GapAnalysis[Methodological & Technical Gap Matrix\nImpact vs. Feasibility Assessment]
+        Comp --> GapAnalysis["Methodological & Technical Gap Matrix<br/>(Impact vs Feasibility Assessment)"]
     end
 
     subgraph Agent3 ["Agent 3: Patent & IP Intelligence"]
-        Decomp --> PatentSearch[Patent Landscape Query\nUSPTO | Espacenet | Lens.org | WIPO]
-        PatentSearch --> FTO[FTO & Technology Readiness Assessment]
+        Decomp --> PatentSearch["Patent Landscape Query<br/>(USPTO, Espacenet, Lens.org, WIPO)"]
+        PatentSearch --> FTO["FTO & Technology Readiness Assessment"]
     end
 
     subgraph Agent4 ["Agent 4: Executive Intelligence Compiler"]
-        Comp --> Compiler[Synthesizer & Chart Renderer]
+        Comp --> Compiler["Synthesizer & Chart Renderer"]
         GapAnalysis --> Compiler
         FTO --> Compiler
-        Compiler --> PDF[PDF Report & Visual Analytics Output]
-        Compiler --> UI[Interactive Frontend Dashboard]
+        Compiler --> PDF["PDF Report & Visual Analytics Output"]
+        Compiler --> UI["Interactive Frontend Dashboard"]
     end
 ```
 
