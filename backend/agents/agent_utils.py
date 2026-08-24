@@ -84,14 +84,11 @@ def execute_gemini_with_retry(
     last_exc = None
     for attempt in range(max_retries):
         try:
-            try:
-                response = client.models.generate_content(
-                    model=model,
-                    contents=prompt,
-                    config=config,
-                )
-            except TypeError:
-                response = client.models.generate_content(model, prompt, config)
+            response = client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=config,
+            )
             print(f"[Gemini] {agent_label} request #{req_num} — success")
             return response.text.strip() if hasattr(response, "text") and response.text else ""
         except Exception as e:
